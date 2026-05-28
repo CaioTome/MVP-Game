@@ -25,6 +25,12 @@ const platforms = [
     { x: 500, y: 310, w: 120, h: 15, type: 'platform' }, // Plataforma sobre a água
 ];
 
+// Caixas dinâmicas (Frágeis e Móveis)
+let boxes = [
+    { x: 300, y: 380, w: 40, h: 40, type: 'fragile' },   // Bloqueia caminho da porta
+    { x: 900, y: 680, w: 50, h: 40, type: 'movable' },   // Pode ser usada de degrau
+];
+
 // Definindo a zona de Água (Mergulho da Capivara)
 const waterArea = {
     x: 550,
@@ -61,9 +67,10 @@ const waterLever = {
 // Estado das teclas de controle de teclado
 const keys = {
     // Capivara (WASD)
-    w: false, a: false, s: false, d: false,
+    w: false, a: false, s: false, d: false, ' ': false,
     // Tuiuiú (Setas)
-    ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false
+    ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+    Enter: false
 };
 
 // Estado dos botões de toque para dispositivos móveis
@@ -143,6 +150,23 @@ class Character {
                     this.vy = -7.5; // Pulo
                     this.isGrounded = false;
                 }
+
+                // Ação de quebrar caixa frágil (Espaço)
+                if (keys[' '] || touchState.capyUp) { // Usei o up do touch como quebra no mobile por simplicidade
+                    boxes = boxes.filter(box => {
+                        if (box.type !== 'fragile') return true;
+                        const dist = Math.hypot(
+                            (this.x + this.width / 2) - (box.x + box.w / 2),
+                            (this.y + this.height / 2) - (box.y + box.h / 2)
+                        );
+                        // Se estiver perto e apertar espaço, a caixa some
+                        if (dist < 60) {
+                            // Efeito visual simples poderia ser adicionado aqui
+                            return false; 
+                        }
+                        return true;
+                    });
+                }
             }
         } else if (this.type === 'tuiuiu') {
             // Tuiuiú flutua se encostar na água, mas não consegue mergulhar fundo
@@ -168,6 +192,23 @@ class Character {
                 this.vy = 4.0; // Descida rápida
             } else {
                 this.vy += gravity; // Gravidade puxando ele levemente para o chão
+            }
+
+            // Ação de puxar caixa móvel (Enter)
+            if (keys.Enter) {
+                boxes.forEach(box => {
+                    if (box.type === 'movable') {
+                        const dist = Math.hypot(
+                            (this.x + this.width / 2) - (box.x + box.w / 2),
+                            (this.y + this.height / 2) - (box.y + box.h / 2)
+                        );
+                        // Se o pássaro estiver perto da caixa móvel
+                        if (dist < 50) {
+                            // A caixa segue o X do pássaro (puxando)
+                            box.x += (this.x - box.x - (box.w / 2 - this.width / 2)) * 0.1;
+                        }
+                    }
+                });
             }
         }
 
@@ -199,7 +240,8 @@ class Character {
 
     resolvePlatformCollisions(prevX, prevY, axis) {
         // Tuiuiú não pode afundar no tanque de água, capivara sim
-        for (let plat of platforms) {
+        const allSolid = [...platforms, ...boxes];
+        for (let plat of allSolid) {
             // Colisão básica do retângulo do personagem com a plataforma
             if (this.x + this.width > plat.x &&
                 this.x < plat.x + plat.w &&
@@ -429,12 +471,14 @@ window.addEventListener('keydown', (e) => {
     if (k === 'a') keys.a = true;
     if (k === 's') keys.s = true;
     if (k === 'd') keys.d = true;
+    if (k === ' ') keys[' '] = true;
 
     // Tuiuiú (Setas)
     if (e.key === 'ArrowUp') keys.ArrowUp = true;
     if (e.key === 'ArrowDown') keys.ArrowDown = true;
     if (e.key === 'ArrowLeft') keys.ArrowLeft = true;
     if (e.key === 'ArrowRight') keys.ArrowRight = true;
+    if (e.key === 'Enter') keys.Enter = true;
 });
 
 window.addEventListener('keyup', (e) => {
@@ -445,12 +489,14 @@ window.addEventListener('keyup', (e) => {
     if (k === 'a') keys.a = false;
     if (k === 's') keys.s = false;
     if (k === 'd') keys.d = false;
+    if (k === ' ') keys[' '] = false;
 
     // Tuiuiú
     if (e.key === 'ArrowUp') keys.ArrowUp = false;
     if (e.key === 'ArrowDown') keys.ArrowDown = false;
     if (e.key === 'ArrowLeft') keys.ArrowLeft = false;
     if (e.key === 'ArrowRight') keys.ArrowRight = false;
+    if (e.key === 'Enter') keys.Enter = false;
 });
 
 // Configurar Controles de Toque para Mobile
@@ -496,12 +542,19 @@ function toggleTouchControls() {
 function startGame() {
     document.getElementById('tutorialOverlay').classList.add('hidden');
     gameActive = true;
-    resetGameLogic();
+    // Não chama resetGameLogic aqui para não limpar as caixas que acabaram de ser criadas
+    capivara.reset();
+    tuiuiu.reset();
 }
 
 function resetGame() {
     document.getElementById('victoryOverlay').classList.add('hidden');
     resetGameLogic();
+    // Reposicionar caixas ao reiniciar
+    boxes = [
+        { x: 300, y: 380, w: 40, h: 40, type: 'fragile' },
+        { x: 900, y: 680, w: 50, h: 40, type: 'movable' },
+    ];
 }
 
 function resetGameLogic() {
@@ -643,6 +696,34 @@ function gameLoop() {
             ctx.fillStyle = '#1e293b'; // Chão escuro sob a água
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
         }
+    });
+
+    // 2.5 Desenhar Caixas
+    boxes.forEach(box => {
+        if (box.type === 'fragile') {
+            ctx.fillStyle = '#92400e'; // Madeira
+            ctx.fillRect(box.x, box.y, box.w, box.h);
+            ctx.strokeStyle = '#f97316'; // Laranja
+            ctx.lineWidth = 4;
+            // Desenhar o X laranja
+            ctx.beginPath();
+            ctx.moveTo(box.x + 8, box.y + 8);
+            ctx.lineTo(box.x + box.w - 8, box.y + box.h - 8);
+            ctx.moveTo(box.x + box.w - 8, box.y + 8);
+            ctx.lineTo(box.x + 8, box.y + box.h - 8);
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = '#57534e'; // Metal/Pedra móvel
+            ctx.fillRect(box.x, box.y, box.w, box.h);
+            ctx.strokeStyle = '#a8a29e';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(box.x + 5, box.y + 5, box.w - 10, box.h - 10);
+            // Alça para o Tuiuiú puxar
+            ctx.beginPath();
+            ctx.arc(box.x + box.w/2, box.y + 5, 8, Math.PI, 0);
+            ctx.stroke();
+        }
+        ctx.strokeRect(box.x, box.y, box.w, box.h);
     });
 
     // 3. Desenhar Elementos Interativos do Puzzle
