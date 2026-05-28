@@ -560,7 +560,7 @@
                 ctx.beginPath();
                 if (Math.abs(this.vy) > 0.5 || keys.ArrowUp || touchState.tuiUp) {
                     // Asa batendo para cima/baixo
-                    ctx.ellipse(centerX - (8 * beakDirection), centerY + 4, 18, 6 + flap, Math.PI/4 * beakDirection, 0, Math.PI * 2);
+                    ctx.ellipse(centerX - (8 * beakDirection), centerY + 4, 18, Math.abs(6 + flap), Math.PI/4 * beakDirection, 0, Math.PI * 2);
                 } else {
                     // Asa recolhida
                     ctx.ellipse(centerX - (4 * beakDirection), centerY + 6, 8, 14, -Math.PI/12 * beakDirection, 0, Math.PI * 2);
@@ -578,6 +578,11 @@
         window.addEventListener('keydown', (e) => {
             if (!gameActive) return;
             const k = e.key.toLowerCase();
+            
+            // Impede que a página role ao usar as setas ou WASD
+            if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
+                e.preventDefault();
+            }
             
             // Capivara (WASD)
             if (k === 'w') keys.w = true;
