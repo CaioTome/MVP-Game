@@ -1,4 +1,3 @@
-
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -15,34 +14,22 @@ let buttonActivated = false;
 let doorOpened = false;
 let isVictorious = false;
 
-// Estrutura física das plataformas (X, Y, Largura, Altura)
-const platforms = [
-    { x: 0, y: 650, w: 820, h: 70, type: 'ground' }, // Chão esquerdo principal
-    { x: 1100, y: 650, w: 180, h: 70, type: 'ground' }, // Chão direito
-    { x: 820, y: 700, w: 280, h: 20, type: 'water-floor' }, // Fundo da água
-    { x: 800, y: 530, w: 20, h: 120, type: 'ground' }, // Parede esquerda tanque (Altura reduzida)
-    { x: 1100, y: 530, w: 20, h: 120, type: 'ground' }, // Parede direita tanque (Altura reduzida)
-    { x: 0, y: 250, w: 200, h: 20, type: 'platform' }, // Plataforma Botão Tuiuiú
-    { x: 250, y: 0, w: 20, h: 450, type: 'ground' }, // Divisória de puzzle
-    { x: 350, y: 350, w: 150, h: 20, type: 'platform' }, // Início Caixa Móvel
-    { x: 650, y: 540, w: 150, h: 20, type: 'platform' }, // Degrau para mergulho (Altura reduzida)
-];
+// Estado do Nível e Transições
+let currentLevelIndex = 0;
+let levelTransitionTimer = 0;
+let levelNameToShow = "";
+let screenShakeTime = 0;
 
-// Caixas dinâmicas (Frágeis e Móveis)
-let boxes = [
-    { x: 240, y: 450, w: 40, h: 200, type: 'fragile' }, // Barreira que a Capivara deve quebrar
-    { x: 400, y: 300, w: 50, h: 50, type: 'movable', vy: 0 }, // Caixa que o Tuiuiú puxa
-];
+// Entidades e plataformas físicas carregadas dinamicamente
+const platforms = [];
+const gates = [];
+const boxes = [];
+let pressurePlate = null;
 
-// Definindo a zona de Água (Mergulho da Capivara)
-const waterArea = {
-    x: 820, y: 530, w: 280, h: 170
-};
-
-// Entidades Interativas
-const door = { x: 1180, y: 580, w: 55, h: 70, color: '#ef4444' };
-const highButton = { x: 50, y: 235, w: 30, h: 15, activated: false };
-const waterLever = { x: 950, y: 660, w: 15, h: 40, activated: false };
+const waterArea = { x: 0, y: 0, w: 0, h: 0 };
+const door = { x: 0, y: 0, w: 0, h: 0, color: '#ef4444' };
+const highButton = { x: 0, y: 0, w: 0, h: 0, activated: false };
+const waterLever = { x: 0, y: 0, w: 0, h: 0, activated: false };
 
 // Estado das teclas de controle de teclado
 const keys = {
@@ -58,6 +45,274 @@ const touchState = {
     capyUp: false, capyDown: false, capyLeft: false, capyRight: false,
     tuiUp: false, tuiDown: false, tuiLeft: false, tuiRight: false
 };
+
+// Sistema de Efeitos Sonoros Dinâmicos (Web Audio API)
+class SoundFX {
+    constructor() {
+        this.ctx = null;
+        this.muted = false;
+    }
+
+    init() {
+        if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    playJump() {
+        if (this.muted) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(320, this.ctx.currentTime + 0.15);
+
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+    }
+
+    playFlap() {
+        if (this.muted) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(110, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + 0.12);
+
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.12);
+    }
+
+    playBreak() {
+        if (this.muted) return;
+        this.init();
+        
+        const bufferSize = this.ctx.sampleRate * 0.25;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 350;
+        filter.Q.value = 1.2;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        noise.start();
+    }
+
+    playSplash() {
+        if (this.muted) return;
+        this.init();
+        
+        const bufferSize = this.ctx.sampleRate * 0.3;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(700, this.ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.3);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        noise.start();
+    }
+
+    playTrigger() {
+        if (this.muted) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(550, this.ctx.currentTime);
+        osc.frequency.setValueAtTime(850, this.ctx.currentTime + 0.08);
+
+        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.2);
+    }
+
+    playPlateActivate() {
+        if (this.muted) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+        osc.frequency.setValueAtTime(294, this.ctx.currentTime + 0.08);
+
+        gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.2);
+    }
+
+    playPlateDeactivate() {
+        if (this.muted) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(294, this.ctx.currentTime);
+        osc.frequency.setValueAtTime(220, this.ctx.currentTime + 0.08);
+
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+    }
+
+    playVictory() {
+        if (this.muted) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50]; // C Major
+        notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+
+            gain.gain.setValueAtTime(0.15, now + idx * 0.1);
+            gain.gain.setValueAtTime(0.15, now + idx * 0.1 + 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.3);
+
+            osc.start(now + idx * 0.1);
+            osc.stop(now + idx * 0.1 + 0.3);
+        });
+    }
+}
+const soundFX = new SoundFX();
+
+// Função global para mutar o som chamada pelo HTML
+function toggleMute() {
+    soundFX.muted = !soundFX.muted;
+    const btn = document.getElementById('btn-mute');
+    if (soundFX.muted) {
+        btn.textContent = '🔇 Mudo';
+        btn.className = "bg-stone-800 hover:bg-stone-750 text-stone-400 text-xs font-bold px-3 py-1.5 rounded-lg transition-all shadow-inner border border-stone-850";
+    } else {
+        btn.textContent = '🔊 Som';
+        btn.className = "bg-stone-700 hover:bg-stone-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all shadow-md";
+    }
+}
+
+// Sistema de Partículas (Estética Dinâmica)
+const particles = [];
+class Particle {
+    constructor(x, y, vx, vy, color, size, life, decay, type = 'generic') {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.color = color;
+        this.size = size;
+        this.life = life;
+        this.decay = decay;
+        this.type = type;
+        this.angle = Math.random() * Math.PI * 2;
+        this.spin = (Math.random() - 0.5) * 0.15;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= this.decay;
+
+        if (this.type === 'bubble') {
+            this.vy -= 0.04; // flutua levemente
+            this.vx += Math.sin(Date.now() * 0.005 + this.y) * 0.04; // ondula
+        } else if (this.type === 'feather') {
+            this.vy += 0.02; // cai devagar
+            this.vx = Math.sin(Date.now() * 0.004 + this.y) * 0.25; // flutua
+            this.angle += this.spin;
+        } else if (this.type === 'wood') {
+            this.vy += 0.25; // cai com gravidade
+            this.angle += this.spin;
+        } else if (this.type === 'dust') {
+            this.vx *= 0.95;
+            this.vy *= 0.95;
+        }
+    }
+
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+
+        if (this.type === 'feather' || this.type === 'wood') {
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            if (this.type === 'feather') {
+                ctx.beginPath();
+                ctx.ellipse(0, 0, this.size * 2, this.size, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size * 1.6);
+            }
+        } else {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+}
 
 // Definição dos Personagens
 class Character {
@@ -93,6 +348,7 @@ class Character {
         this.animationTimer += 0.15;
 
         // 1. Checar se está na água
+        const wasInWater = this.inWater;
         this.inWater = (
             this.x + this.width > waterArea.x &&
             this.x < waterArea.x + waterArea.w &&
@@ -100,56 +356,107 @@ class Character {
             this.y < waterArea.y + waterArea.h
         );
 
-        // 2. Aplicar Física apropriada para o local/tipo
+        // Splash quando entra ou sai da água
+        if (this.inWater !== wasInWater) {
+            soundFX.playSplash();
+            for (let i = 0; i < 12; i++) {
+                const px = this.x + this.width / 2 + (Math.random() - 0.5) * this.width;
+                const py = waterArea.y;
+                const vx = (Math.random() - 0.5) * 3.5;
+                const vy = -Math.random() * 3 - 1.5;
+                particles.push(new Particle(px, py, vx, vy, '#60a5fa', Math.random() * 2.5 + 1.5, 0.9, 0.03, 'bubble'));
+            }
+        }
+
+        // 2. Aplicar Física apropriada
         if (this.type === 'capivara') {
             if (this.inWater) {
-                // Movimento de natação da Capivara (Fluido e 360 graus)
+                // Movimentação de nado suave da Capivara
                 const speed = 2.5;
-                if (keys.a || touchState.capyLeft) { this.vx = -speed; this.facingRight = false; }
-                else if (keys.d || touchState.capyRight) { this.vx = speed; this.facingRight = true; }
+                const accel = 0.35;
+                if (keys.a || touchState.capyLeft) { this.vx = Math.max(-speed, this.vx - accel); this.facingRight = false; }
+                else if (keys.d || touchState.capyRight) { this.vx = Math.min(speed, this.vx + accel); this.facingRight = true; }
                 else { this.vx *= 0.85; }
 
-                if (keys.w || touchState.capyUp) { this.vy = -speed; }
-                else if (keys.s || touchState.capyDown) { this.vy = speed; }
+                if (keys.w || touchState.capyUp) { this.vy = Math.max(-speed, this.vy - accel); }
+                else if (keys.s || touchState.capyDown) { this.vy = Math.min(speed, this.vy + accel); }
                 else { this.vy *= 0.85; }
 
-                // Gravidade na água é quase nula (empuxo)
                 this.isGrounded = false;
+
+                // Gerar bolhas enquanto nada
+                if ((Math.abs(this.vx) > 0.5 || Math.abs(this.vy) > 0.5) && Math.random() < 0.25) {
+                    particles.push(new Particle(this.x + this.width / 2, this.y + this.height / 2, (Math.random() - 0.5) * 1, (Math.random() - 0.5) * 1, 'rgba(191, 219, 254, 0.7)', Math.random() * 3 + 1, 1.0, 0.02, 'bubble'));
+                }
             } else {
-                // Movimento terrestre da Capivara
+                // Movimento terrestre com inércia
                 const speed = 3.5;
+                const accel = 0.5;
                 const gravity = 0.4;
 
-                if (keys.a || touchState.capyLeft) { this.vx = -speed; this.facingRight = false; }
-                else if (keys.d || touchState.capyRight) { this.vx = speed; this.facingRight = true; }
+                if (keys.a || touchState.capyLeft) { this.vx = Math.max(-speed, this.vx - accel); this.facingRight = false; }
+                else if (keys.d || touchState.capyRight) { this.vx = Math.min(speed, this.vx + accel); this.facingRight = true; }
                 else { this.vx *= 0.75; }
 
-                this.vy += gravity; // Gravidade normal
+                this.vy += gravity;
 
+                // Pulo terrestre
                 if ((keys.w || touchState.capyUp) && this.isGrounded) {
-                    this.vy = -7.5; // Pulo
+                    this.vy = -7.5;
                     this.isGrounded = false;
+                    soundFX.playJump();
+                    // Partículas de poeira no impulso do pulo
+                    for (let i = 0; i < 6; i++) {
+                        particles.push(new Particle(this.x + this.width / 2, this.y + this.height - 2, (Math.random() - 0.5) * 3, -Math.random() * 1.5, '#78716c', Math.random() * 2 + 1, 0.9, 0.04, 'dust'));
+                    }
+                }
+
+                // Efeito de poeira ao caminhar na terra
+                if (this.isGrounded && Math.abs(this.vx) > 1 && Math.random() < 0.12) {
+                    particles.push(new Particle(this.x + this.width / 2, this.y + this.height - 2, -this.vx * 0.2 + (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.2 - 0.1, '#78716c', Math.random() * 2, 0.8, 0.05, 'dust'));
                 }
 
                 // Ação de quebrar caixa frágil (Espaço)
-                if (keys[' '] || touchState.capyUp) { // Usei o up do touch como quebra no mobile por simplicidade
-                    boxes = boxes.filter(box => {
-                        if (box.type !== 'fragile') return true;
-                        // Verifica se a capivara está próxima de qualquer ponto da caixa (AABB expandido)
-                        const isNear = (
-                            this.x + this.width + 20 > box.x &&
-                            this.x - 20 < box.x + box.w &&
-                            this.y + this.height + 20 > box.y &&
-                            this.y - 20 < box.y + box.h
-                        );
-                        return !isNear; // Remove se estiver perto
+                if (keys[' ']) {
+                    let boxBroken = false;
+                    const remainingBoxes = [];
+                    
+                    boxes.forEach(box => {
+                        if (box.type === 'fragile') {
+                            const isNear = (
+                                this.x + this.width + 20 > box.x &&
+                                this.x - 20 < box.x + box.w &&
+                                this.y + this.height + 20 > box.y &&
+                                this.y - 20 < box.y + box.h
+                            );
+                            if (isNear) {
+                                boxBroken = true;
+                                // Criar partículas de madeira
+                                for (let i = 0; i < 18; i++) {
+                                    const px = box.x + box.w / 2;
+                                    const py = box.y + box.h / 2;
+                                    const vx = (Math.random() - 0.5) * 6;
+                                    const vy = (Math.random() - 0.5) * 6 - 3;
+                                    particles.push(new Particle(px, py, vx, vy, '#b45309', Math.random() * 3 + 2, 1.0, 0.02 + Math.random() * 0.015, 'wood'));
+                                }
+                                return; // Não adiciona à nova lista (destrói)
+                            }
+                        }
+                        remainingBoxes.push(box);
                     });
+
+                    if (boxBroken) {
+                        boxes.length = 0;
+                        remainingBoxes.forEach(b => boxes.push(b));
+                        soundFX.playBreak();
+                        screenShakeTime = 12; // tremor de tela
+                        keys[' '] = false; // evita quebra contínua em um frame
+                    }
                 }
             }
         } else if (this.type === 'tuiuiu') {
-            // Tuiuiú flutua se encostar na água, mas não consegue mergulhar fundo
+            // Tuiuiú flutua no topo da água
             if (this.inWater && this.y + this.height - 10 > waterArea.y) {
-                // Mantém o tuiuiú flutuando no topo da água apenas se não estiver tentando voar para cima
                 if (!(keys.ArrowUp || touchState.tuiUp)) {
                     this.y = waterArea.y - this.height + 15;
                     this.vy = 0;
@@ -157,21 +464,30 @@ class Character {
                 }
             }
 
-            // Movimento do Tuiuiú (Voo dinâmico)
+            // Movimento de voo dinâmico com inércia
             const speed = 4.0;
-            const gravity = 0.22; // Gravidade mais leve para o pássaro planar
+            const accel = 0.5;
+            const gravity = 0.22;
 
-            if (keys.ArrowLeft || touchState.tuiLeft) { this.vx = -speed; this.facingRight = false; }
-            else if (keys.ArrowRight || touchState.tuiRight) { this.vx = speed; this.facingRight = true; }
+            if (keys.ArrowLeft || touchState.tuiLeft) { this.vx = Math.max(-speed, this.vx - accel); this.facingRight = false; }
+            else if (keys.ArrowRight || touchState.tuiRight) { this.vx = Math.min(speed, this.vx + accel); this.facingRight = true; }
             else { this.vx *= 0.82; }
 
-            // Controle de voo / flap
+            // Bater asas (Flap)
             if (keys.ArrowUp || touchState.tuiUp) {
-                this.vy = -4.5; // Força contínua de voo
+                this.vy = Math.max(-4.5, this.vy - 0.7);
+                // Som de flap sutil
+                if (Math.random() < 0.12) soundFX.playFlap();
+                // Soltar penas ocasionalmente
+                if (Math.random() < 0.15) {
+                    const px = this.x + this.width / 2;
+                    const py = this.y + this.height - 5;
+                    particles.push(new Particle(px, py, (Math.random() - 0.5) * 1.5, Math.random() * 0.8 + 0.2, '#f5f5f5', Math.random() * 2 + 1, 0.9, 0.015, 'feather'));
+                }
             } else if (keys.ArrowDown || touchState.tuiDown) {
-                this.vy = 4.0; // Descida rápida
+                this.vy = Math.min(4.0, this.vy + 0.6);
             } else {
-                this.vy += gravity; // Gravidade puxando ele levemente para o chão
+                this.vy += gravity;
             }
 
             // Ação de puxar caixa móvel (Enter)
@@ -182,16 +498,26 @@ class Character {
                             (this.x + this.width / 2) - (box.x + box.w / 2),
                             (this.y + this.height / 2) - (box.y + box.h / 2)
                         );
-                        if (dist < 70) {
+                        if (dist < 75) {
                             box.isBeingPulled = true;
-                            box.x += (this.x - box.x - (box.w / 2 - this.width / 2)) * 0.15;
-                            box.y += (this.y - box.y - (box.h / 2 - this.height / 2)) * 0.15;
-                            box.vy = 0;
+                            // Calcula vetor de força de arraste
+                            const targetX = this.x - (box.w / 2 - this.width / 2);
+                            const targetY = this.y - (box.h / 2 - this.height / 2);
+                            box.vx = (targetX - box.x) * 0.18;
+                            box.vy = (targetY - box.y) * 0.18;
                         }
                     }
                 });
             } else {
-                boxes.forEach(box => { if (box.type === 'movable') box.isBeingPulled = false; });
+                boxes.forEach(box => {
+                    if (box.type === 'movable') {
+                        if (box.isBeingPulled) {
+                            box.isBeingPulled = false;
+                            box.vx = 0;
+                            box.vy = 0;
+                        }
+                    }
+                });
             }
         }
 
@@ -222,23 +548,19 @@ class Character {
     }
 
     resolvePlatformCollisions(prevX, prevY, axis) {
-        // Tuiuiú não pode afundar no tanque de água, capivara sim
-        const allSolid = [...platforms, ...boxes];
+        // Personagens colidem contra plataformas fixas, caixas e portões dinâmicos
+        const allSolid = [...platforms, ...boxes, ...gates];
         for (let plat of allSolid) {
-            // Colisão básica do retângulo do personagem com a plataforma
             if (this.x + this.width > plat.x &&
                 this.x < plat.x + plat.w &&
                 this.y + this.height > plat.y &&
                 this.y < plat.y + plat.h) {
 
-                // Se o Tuiuiú tentar entrar no chão da água, bloquear
                 if (this.type === 'tuiuiu' && plat.type === 'water-floor') {
-                    // Não faz colisão convencional para permitir que ele flutue acima dela na superfície da água
-                    continue;
+                    continue; // Tuiuiú não bate no chão subaquático
                 }
 
                 if (axis === 'x') {
-                    // Colisão horizontal
                     if (this.vx > 0) {
                         this.x = plat.x - this.width;
                     } else if (this.vx < 0) {
@@ -246,7 +568,6 @@ class Character {
                     }
                     this.vx = 0;
                 } else {
-                    // Colisão vertical
                     if (this.vy > 0) {
                         this.y = plat.y - this.height;
                         this.isGrounded = true;
@@ -262,7 +583,6 @@ class Character {
     draw() {
         ctx.save();
 
-        // Efeito visual quando o personagem está na água
         if (this.inWater) {
             ctx.shadowBlur = 8;
             ctx.shadowColor = '#60a5fa';
@@ -290,7 +610,7 @@ class Character {
         ctx.fill();
 
         // Cabeça
-        ctx.fillStyle = '#92400e'; // Tom mais claro
+        ctx.fillStyle = '#92400e';
         const headX = this.facingRight ? centerX + 12 : centerX - 12;
         const headY = centerY - 5;
         ctx.beginPath();
@@ -316,17 +636,13 @@ class Character {
         ctx.arc(earX, headY - 8, 3, 0, Math.PI * 2);
         ctx.fill();
 
-        // Patinhas (apenas se não estiver na água ou pulando)
+        // Patinhas
         if (!this.inWater && this.isGrounded) {
             ctx.fillStyle = '#451a03';
             const walkCycle = Math.sin(this.animationTimer) * 4;
-            // Pata 1
             ctx.fillRect(centerX - 12, centerY + 10, 4, 6 + walkCycle);
-            // Pata 2
             ctx.fillRect(centerX - 4, centerY + 10, 4, 6 - walkCycle);
-            // Pata 3
             ctx.fillRect(centerX + 4, centerY + 10, 4, 6 + walkCycle);
-            // Pata 4
             ctx.fillRect(centerX + 10, centerY + 10, 4, 6 - walkCycle);
         } else if (this.inWater) {
             // Patinhas nadando
@@ -346,6 +662,7 @@ class Character {
         const centerX = this.x + this.width / 2;
         const centerY = this.y + this.height / 2;
         const flap = Math.sin(this.animationTimer) * 8;
+        const beakDirection = this.facingRight ? 1 : -1;
 
         // Corpo Branco
         ctx.fillStyle = '#ffffff';
@@ -353,7 +670,7 @@ class Character {
         ctx.ellipse(centerX, centerY + 8, 12, 16, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Pescoço Preto (Esticado, característico)
+        // Pescoço Preto
         ctx.strokeStyle = '#1c1917';
         ctx.lineWidth = 6;
         ctx.lineCap = 'round';
@@ -374,33 +691,30 @@ class Character {
         ctx.arc(centerX, centerY - 20, 7, 0, Math.PI * 2);
         ctx.fill();
 
-        // Bico Longo Amarelado/Preto
+        // Bico Longo
         ctx.fillStyle = '#f59e0b';
         ctx.beginPath();
-        const beakDirection = this.facingRight ? 1 : -1;
         ctx.moveTo(centerX, centerY - 22);
         ctx.lineTo(centerX + (22 * beakDirection), centerY - 18);
         ctx.lineTo(centerX, centerY - 16);
         ctx.closePath();
         ctx.fill();
 
-        // Olho do Tuiuiú
+        // Olho
         ctx.fillStyle = '#fff';
         const eyeX = this.facingRight ? centerX + 2 : centerX - 4;
         ctx.beginPath();
         ctx.arc(eyeX, centerY - 21, 1.2, 0, Math.PI * 2);
         ctx.fill();
 
-        // Pernas Longas (se no chão)
+        // Pernas Longas
         ctx.strokeStyle = '#1c1917';
         ctx.lineWidth = 2.5;
         if (this.vy === 0 || this.isGrounded) {
-            // Perna esquerda
             ctx.beginPath();
             ctx.moveTo(centerX - 4, centerY + 22);
             ctx.lineTo(centerX - 4, centerY + 40);
             ctx.stroke();
-            // Perna direita
             ctx.beginPath();
             ctx.moveTo(centerX + 4, centerY + 22);
             ctx.lineTo(centerX + 4, centerY + 40);
@@ -411,23 +725,20 @@ class Character {
             ctx.moveTo(centerX - 4, centerY + 22);
             ctx.lineTo(centerX - 8, centerY + 30);
             ctx.stroke();
-
             ctx.beginPath();
             ctx.moveTo(centerX + 4, centerY + 22);
             ctx.lineTo(centerX, centerY + 30);
             ctx.stroke();
         }
 
-        // Asas (Grandes e expressivas)
+        // Asas
         ctx.fillStyle = '#e5e5e5';
         ctx.strokeStyle = '#737373';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         if (Math.abs(this.vy) > 0.5 || keys.ArrowUp || touchState.tuiUp) {
-            // Asa batendo para cima/baixo
             ctx.ellipse(centerX - (8 * beakDirection), centerY + 4, 18, Math.abs(6 + flap), Math.PI / 4 * beakDirection, 0, Math.PI * 2);
         } else {
-            // Asa recolhida
             ctx.ellipse(centerX - (4 * beakDirection), centerY + 6, 8, 14, -Math.PI / 12 * beakDirection, 0, Math.PI * 2);
         }
         ctx.fill();
@@ -435,28 +746,187 @@ class Character {
     }
 }
 
-// Criar personagens nas posições iniciais ideais
+// Criação dos personagens
 const capivara = new Character(100, 600, '#78350f', 'capivara', 'Capivara');
 const tuiuiu = new Character(150, 600, '#ffffff', 'tuiuiu', 'Tuiuiú');
+
+// Sistema de Fases Estruturado
+const levels = [
+    {
+        name: "Fase 1: O Começo",
+        platforms: [
+            { x: 0, y: 650, w: 820, h: 70, type: 'ground' }, 
+            { x: 1100, y: 650, w: 180, h: 70, type: 'ground' }, 
+            { x: 820, y: 700, w: 280, h: 20, type: 'water-floor' }, 
+            { x: 800, y: 530, w: 20, h: 120, type: 'ground' }, 
+            { x: 1100, y: 530, w: 20, h: 120, type: 'ground' }, 
+            { x: 0, y: 250, w: 200, h: 20, type: 'platform' }, 
+            { x: 250, y: 0, w: 20, h: 450, type: 'ground' }, 
+            { x: 350, y: 350, w: 150, h: 20, type: 'platform' }, 
+            { x: 650, y: 540, w: 150, h: 20, type: 'platform' }
+        ],
+        gates: [],
+        boxes: [
+            { x: 240, y: 450, w: 40, h: 200, type: 'fragile' },
+            { x: 400, y: 300, w: 50, h: 50, type: 'movable' }
+        ],
+        waterArea: { x: 820, y: 530, w: 280, h: 170 },
+        door: { x: 1180, y: 580, w: 55, h: 70 },
+        highButton: { x: 50, y: 235, w: 30, h: 15 },
+        waterLever: { x: 950, y: 660, w: 15, h: 40 },
+        pressurePlate: null,
+        capyStart: { x: 100, y: 600 },
+        tuiStart: { x: 150, y: 600 }
+    },
+    {
+        name: "Fase 2: O Peso da Cooperação",
+        platforms: [
+            { x: 0, y: 650, w: 900, h: 70, type: 'ground' }, 
+            { x: 1120, y: 650, w: 160, h: 70, type: 'ground' }, 
+            { x: 0, y: 250, w: 180, h: 20, type: 'platform' }, 
+            { x: 700, y: 200, w: 150, h: 20, type: 'platform' }, 
+            { x: 900, y: 530, w: 20, h: 120, type: 'ground' }, 
+            { x: 1100, y: 530, w: 20, h: 120, type: 'ground' }, 
+            { x: 920, y: 700, w: 180, h: 20, type: 'water-floor' },
+            { x: 150, y: 430, w: 120, h: 20, type: 'platform' },
+            { x: 800, y: 560, w: 100, h: 20, type: 'platform' }
+        ],
+        gates: [
+            { x: 500, y: 450, w: 20, h: 200, activeY: 450, targetY: 650 }
+        ],
+        boxes: [
+            { x: 350, y: 450, w: 40, h: 200, type: 'fragile' },
+            { x: 750, y: 150, w: 50, h: 50, type: 'movable' }
+        ],
+        waterArea: { x: 920, y: 525, w: 180, h: 175 },
+        door: { x: 1180, y: 580, w: 55, h: 70 },
+        highButton: { x: 50, y: 235, w: 30, h: 15 },
+        waterLever: { x: 1000, y: 660, w: 15, h: 40 },
+        pressurePlate: { x: 600, y: 640, w: 80, h: 10 },
+        capyStart: { x: 80, y: 600 },
+        tuiStart: { x: 550, y: 600 }
+    },
+    {
+        name: "Fase 3: O Templo Submerso",
+        platforms: [
+            { x: 0, y: 650, w: 430, h: 70, type: 'ground' }, 
+            { x: 870, y: 650, w: 410, h: 70, type: 'ground' }, 
+            { x: 430, y: 530, w: 20, h: 120, type: 'ground' }, 
+            { x: 850, y: 530, w: 20, h: 120, type: 'ground' }, 
+            { x: 450, y: 650, w: 400, h: 20, type: 'water-floor' }, 
+            { x: 1000, y: 250, w: 150, h: 20, type: 'platform' }, 
+            { x: 0, y: 170, w: 120, h: 20, type: 'platform' }, 
+            { x: 600, y: 250, w: 100, h: 20, type: 'platform' },
+            { x: 330, y: 560, w: 100, h: 20, type: 'platform' }
+        ],
+        gates: [
+            { x: 950, y: 350, w: 20, h: 300, activeY: 350, targetY: 650 }
+        ],
+        boxes: [
+            { x: 300, y: 450, w: 50, h: 200, type: 'fragile' },
+            { x: 1050, y: 200, w: 50, h: 50, type: 'movable' }
+        ],
+        waterArea: { x: 450, y: 525, w: 400, h: 125 },
+        door: { x: 1180, y: 580, w: 55, h: 70 },
+        highButton: { x: 40, y: 155, w: 30, h: 15 },
+        waterLever: { x: 650, y: 610, w: 15, h: 40 },
+        pressurePlate: { x: 200, y: 640, w: 80, h: 10 },
+        capyStart: { x: 100, y: 600 },
+        tuiStart: { x: 150, y: 600 }
+    }
+];
+
+// Carregar Dados da Fase Atual
+function loadLevel(index) {
+    currentLevelIndex = index;
+    const lvl = levels[index];
+
+    // Carregar plataformas fixas
+    platforms.length = 0;
+    lvl.platforms.forEach(p => platforms.push({ ...p }));
+
+    // Carregar portões
+    gates.length = 0;
+    if (lvl.gates) {
+        lvl.gates.forEach(g => gates.push({ ...g, y: g.activeY }));
+    }
+
+    // Carregar caixas
+    boxes.length = 0;
+    lvl.boxes.forEach(b => boxes.push({ ...b, vx: 0, vy: 0, isBeingPulled: false }));
+
+    // Configurar áreas e interações
+    waterArea.x = lvl.waterArea.x;
+    waterArea.y = lvl.waterArea.y;
+    waterArea.w = lvl.waterArea.w;
+    waterArea.h = lvl.waterArea.h;
+
+    door.x = lvl.door.x;
+    door.y = lvl.door.y;
+    door.w = lvl.door.w;
+    door.h = lvl.door.h;
+    door.color = '#ef4444';
+
+    highButton.x = lvl.highButton.x;
+    highButton.y = lvl.highButton.y;
+    highButton.w = lvl.highButton.w;
+    highButton.h = lvl.highButton.h;
+    highButton.activated = false;
+
+    waterLever.x = lvl.waterLever.x;
+    waterLever.y = lvl.waterLever.y;
+    waterLever.w = lvl.waterLever.w;
+    waterLever.h = lvl.waterLever.h;
+    waterLever.activated = false;
+
+    if (lvl.pressurePlate) {
+        pressurePlate = { ...lvl.pressurePlate, activated: false };
+    } else {
+        pressurePlate = null;
+    }
+
+    // Reiniciar estados globais
+    leverActivated = false;
+    buttonActivated = false;
+    doorOpened = false;
+    isVictorious = false;
+
+    // Reposicionar personagens
+    capivara.startX = lvl.capyStart.x;
+    capivara.startY = lvl.capyStart.y;
+    capivara.reset();
+
+    tuiuiu.startX = lvl.tuiStart.x;
+    tuiuiu.startY = lvl.tuiStart.y;
+    tuiuiu.reset();
+
+    // Limpar comandos
+    for (let k in keys) keys[k] = false;
+    for (let t in touchState) touchState[t] = false;
+
+    // Configurar tela de transição
+    levelTransitionTimer = 90;
+    levelNameToShow = lvl.name;
+
+    updateUI();
+    particles.length = 0;
+}
 
 // Inicializar Teclado
 window.addEventListener('keydown', (e) => {
     if (!gameActive) return;
     const k = e.key.toLowerCase();
 
-    // Impede que a página role ao usar as setas ou WASD
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
         e.preventDefault();
     }
 
-    // Capivara (WASD)
     if (k === 'w') keys.w = true;
     if (k === 'a') keys.a = true;
     if (k === 's') keys.s = true;
     if (k === 'd') keys.d = true;
     if (k === ' ') keys[' '] = true;
 
-    // Tuiuiú (Setas)
     if (e.key === 'ArrowUp') keys.ArrowUp = true;
     if (e.key === 'ArrowDown') keys.ArrowDown = true;
     if (e.key === 'ArrowLeft') keys.ArrowLeft = true;
@@ -467,14 +937,12 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase();
 
-    // Capivara
     if (k === 'w') keys.w = false;
     if (k === 'a') keys.a = false;
     if (k === 's') keys.s = false;
     if (k === 'd') keys.d = false;
     if (k === ' ') keys[' '] = false;
 
-    // Tuiuiú
     if (e.key === 'ArrowUp') keys.ArrowUp = false;
     if (e.key === 'ArrowDown') keys.ArrowDown = false;
     if (e.key === 'ArrowLeft') keys.ArrowLeft = false;
@@ -504,7 +972,6 @@ function bindTouchButton(elementId, stateProperty) {
     btn.addEventListener('mouseleave', endAction);
 }
 
-// Vincular todos os botões virtuais
 bindTouchButton('btn-capy-up', 'capyUp');
 bindTouchButton('btn-capy-down', 'capyDown');
 bindTouchButton('btn-capy-left', 'capyLeft');
@@ -515,93 +982,121 @@ bindTouchButton('btn-tui-down', 'tuiDown');
 bindTouchButton('btn-tui-left', 'tuiLeft');
 bindTouchButton('btn-tui-right', 'tuiRight');
 
-// Alternar visualização do painel de controle mobile
 function toggleTouchControls() {
     const container = document.getElementById('touchControlsContainer');
     container.classList.toggle('hidden');
 }
 
-// Física das caixas móveis
+// Colisão da caixa móvel contra plataformas e portões
+function resolveBoxPlatformCollisions(box, prevX, prevY, axis) {
+    const allSolid = [...platforms, ...gates];
+    for (let plat of allSolid) {
+        if (box.x + box.w > plat.x &&
+            box.x < plat.x + plat.w &&
+            box.y + box.h > plat.y &&
+            box.y < plat.y + plat.h) {
+
+            if (axis === 'x') {
+                if (box.vx > 0) {
+                    box.x = plat.x - box.w;
+                } else if (box.vx < 0) {
+                    box.x = plat.x + plat.w;
+                }
+                box.vx = 0;
+            } else {
+                if (box.vy > 0) {
+                    box.y = plat.y - box.h;
+                    box.vy = 0;
+                } else if (box.vy < 0) {
+                    box.y = plat.y + plat.h;
+                    box.vy = 0;
+                }
+            }
+        }
+    }
+}
+
+// Atualizar Física das Caixas Móveis
 function updateBoxes() {
     boxes.forEach(box => {
-        if (box.type === 'movable' && !box.isBeingPulled) {
-            box.vy = (box.vy || 0) + 0.3; // Gravidade
-            box.y += box.vy;
+        if (box.type === 'movable') {
+            if (!box.isBeingPulled) {
+                box.vx = 0;
+                box.vy = (box.vy || 0) + 0.35; // Gravidade da caixa
+            }
 
-            for (let plat of platforms) {
-                if (box.x < plat.x + plat.w && box.x + box.w > plat.x &&
-                    box.y < plat.y + plat.h && box.y + box.h > plat.y) {
-                    if (box.vy > 0) {
-                        box.y = plat.y - box.h;
-                        box.vy = 0;
-                    }
-                }
+            // Mover X e resolver colisões
+            const prevX = box.x;
+            box.x += box.vx;
+            resolveBoxPlatformCollisions(box, prevX, box.y, 'x');
+
+            // Mover Y e resolver colisões
+            const prevY = box.y;
+            box.y += box.vy;
+            resolveBoxPlatformCollisions(box, box.x, prevY, 'y');
+
+            // Limites de tela
+            if (box.x < 0) box.x = 0;
+            if (box.x + box.w > GAME_WIDTH) box.x = GAME_WIDTH - box.w;
+            if (box.y < 0) box.y = 0;
+            if (box.y + box.h > GAME_HEIGHT) {
+                box.y = GAME_HEIGHT - box.h;
+                box.vy = 0;
             }
         }
     });
 }
 
-// Funções de Controle do Estado do Jogo
 function startGame() {
     document.getElementById('tutorialOverlay').classList.add('hidden');
     gameActive = true;
-    // Não chama resetGameLogic aqui para não limpar as caixas que acabaram de ser criadas
-    capivara.reset();
-    tuiuiu.reset();
+    loadLevel(0);
 }
 
 function resetGame() {
     document.getElementById('victoryOverlay').classList.add('hidden');
-    resetGameLogic();
-    // Reposicionar caixas ao reiniciar
-    boxes = [
-        { x: 240, y: 450, w: 40, h: 200, type: 'fragile' },
-        { x: 400, y: 300, w: 50, h: 50, type: 'movable', vy: 0 },
-    ];
-}
-
-function resetGameLogic() {
-    capivara.reset();
-    tuiuiu.reset();
-    leverActivated = false;
-    buttonActivated = false;
-    doorOpened = false;
-    isVictorious = false;
-
-    // Limpar teclas
-    for (let k in keys) keys[k] = false;
-    for (let t in touchState) touchState[t] = false;
-
-    updateUI();
+    loadLevel(currentLevelIndex);
 }
 
 function triggerVictory() {
     isVictorious = true;
     gameActive = false;
-    document.getElementById('victoryOverlay').classList.remove('hidden');
+
+    if (currentLevelIndex < levels.length - 1) {
+        soundFX.playVictory();
+        setTimeout(() => {
+            loadLevel(currentLevelIndex + 1);
+            gameActive = true;
+        }, 1500);
+    } else {
+        soundFX.playVictory();
+        document.getElementById('victoryOverlay').classList.remove('hidden');
+    }
 }
 
-// Atualizar os painéis do cabeçalho
+// Atualizar HUD
 function updateUI() {
     const indLever = document.getElementById('indicator-lever');
     const indButton = document.getElementById('indicator-button');
     const indDoor = document.getElementById('indicator-door');
+    const hudLevel = document.getElementById('hud-level');
 
-    // Alavanca da Capivara
+    if (hudLevel) {
+        hudLevel.textContent = `Fase: ${currentLevelIndex + 1}/${levels.length}`;
+    }
+
     if (leverActivated) {
         indLever.classList.replace('bg-red-500', 'bg-green-500');
     } else {
         indLever.classList.replace('bg-green-500', 'bg-red-500');
     }
 
-    // Botão do Tuiuiú
     if (buttonActivated) {
         indButton.classList.replace('bg-red-500', 'bg-green-500');
     } else {
         indButton.classList.replace('bg-green-500', 'bg-red-500');
     }
 
-    // Status do Portal / Porta de Saída
     if (doorOpened) {
         indDoor.textContent = "Aberto! Vá até lá";
         indDoor.className = "text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30";
@@ -611,19 +1106,18 @@ function updateUI() {
     }
 }
 
-// Verificação das interações do puzzle
+// Colisões do puzzle e interações dinâmicas
 function checkCollisionsAndTriggers() {
     // 1. Capivara ativa Alavanca Subaquática
-    // Apenas ela consegue ativar (verificando tipo do personagem)
     if (!leverActivated) {
         const distToLever = Math.hypot(
             (capivara.x + capivara.width / 2) - (waterLever.x + waterLever.w / 2),
             (capivara.y + capivara.height / 2) - (waterLever.y + waterLever.h / 2)
         );
-        // Distância pequena significa que tocou na alavanca subaquática
         if (distToLever < 35 && capivara.inWater) {
             leverActivated = true;
             waterLever.activated = true;
+            soundFX.playTrigger();
             updateUI();
         }
     }
@@ -634,22 +1128,52 @@ function checkCollisionsAndTriggers() {
             (tuiuiu.x + tuiuiu.width / 2) - (highButton.x + highButton.w / 2),
             (tuiuiu.y + tuiuiu.height / 2) - (highButton.y + highButton.h / 2)
         );
-        // Tuiuiú voou perto o suficiente do botão na plataforma do topo esquerdo
         if (distToButton < 30) {
             buttonActivated = true;
             highButton.activated = true;
+            soundFX.playTrigger();
             updateUI();
         }
     }
 
-    // 3. Checar se ambos foram ativados para abrir a porta
+    // 3. Sensor de Placa de Pressão (se aplicável ao nível)
+    if (pressurePlate) {
+        let isPressed = false;
+        const entities = [capivara, tuiuiu, ...boxes];
+        for (let ent of entities) {
+            if (ent.x + ent.width > pressurePlate.x &&
+                ent.x < pressurePlate.x + pressurePlate.w &&
+                ent.y + ent.height >= pressurePlate.y - 6 &&
+                ent.y <= pressurePlate.y + pressurePlate.h + 5) {
+                isPressed = true;
+                break;
+            }
+        }
+
+        if (isPressed !== pressurePlate.activated) {
+            pressurePlate.activated = isPressed;
+            if (isPressed) {
+                soundFX.playPlateActivate();
+            } else {
+                soundFX.playPlateDeactivate();
+            }
+        }
+    }
+
+    // Mover Portões com base na Placa de Pressão
+    gates.forEach(gate => {
+        const targetY = (pressurePlate && pressurePlate.activated) ? gate.targetY : gate.activeY;
+        gate.y += (targetY - gate.y) * 0.1; // Deslizar portão suavemente
+    });
+
+    // 4. Checar se ambos ativaram para abrir portal de saída
     if (leverActivated && buttonActivated && !doorOpened) {
         doorOpened = true;
-        door.color = '#22c55e'; // Fica verde indicando sucesso
+        door.color = '#22c55e';
         updateUI();
     }
 
-    // 4. Checar se AMBOS chegaram à porta aberta para escapar
+    // 5. Checar se os dois escaparam
     if (doorOpened) {
         const capyAtDoor = (
             capivara.x + capivara.width > door.x &&
@@ -671,97 +1195,178 @@ function checkCollisionsAndTriggers() {
     }
 }
 
-// Loop de Renderização e Física Principal
+// Loop Principal de Renderização e Física
 function gameLoop() {
-    // Limpar Tela
     ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
+    // Efeito de Tremor de Tela (Screen Shake)
+    ctx.save();
+    if (screenShakeTime > 0) {
+        const dx = (Math.random() - 0.5) * 6;
+        const dy = (Math.random() - 0.5) * 6;
+        ctx.translate(dx, dy);
+        screenShakeTime--;
+    }
+
     // 1. Desenhar Fundo de Caverna/Templo antigo do Pantanal
-    ctx.fillStyle = '#292524'; // Parede de pedra escura
+    ctx.fillStyle = '#1c1917';
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // Detalhes da parede (Tijolos/Ruínas de fundo)
-    ctx.fillStyle = '#1c1917';
-    ctx.fillRect(100, 80, 120, 40);
-    ctx.fillRect(350, 150, 80, 50);
-    ctx.fillRect(600, 100, 90, 40);
+    // Tijolos do fundo decorativos
+    ctx.fillStyle = '#141210';
+    ctx.fillRect(80, 100, 140, 45);
+    ctx.fillRect(380, 160, 100, 50);
+    ctx.fillRect(720, 120, 120, 40);
+    ctx.fillRect(1000, 200, 80, 40);
 
-    // 2. Desenhar as plataformas físicas
+    // 2. Desenhar Plataformas Físicas (Estilo Tijolos e Musgo)
     platforms.forEach(plat => {
         if (plat.type === 'ground' || plat.type === 'platform') {
-            ctx.fillStyle = '#44403c'; // Pedra cinza das ruínas
+            ctx.fillStyle = '#44403c'; // Cinza base
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
 
-            // Detalhe de grama sobre as ruínas superiores
-            ctx.fillStyle = '#15803d'; // Verde Pantanal
+            // Linhas divisórias de tijolos
+            ctx.strokeStyle = '#292524';
+            ctx.lineWidth = 1.5;
+            const bWidth = 40;
+            const bHeight = 20;
+
+            // Linhas horizontais
+            for (let y = plat.y + bHeight; y < plat.y + plat.h; y += bHeight) {
+                ctx.beginPath();
+                ctx.moveTo(plat.x, y);
+                ctx.lineTo(plat.x + plat.w, y);
+                ctx.stroke();
+            }
+            // Linhas verticais
+            let rIdx = 0;
+            for (let y = plat.y; y < plat.y + plat.h; y += bHeight) {
+                const xOffset = (rIdx % 2) * (bWidth / 2);
+                for (let x = plat.x - xOffset; x < plat.x + plat.w; x += bWidth) {
+                    if (x >= plat.x) {
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
+                        ctx.lineTo(x, y + Math.min(bHeight, plat.y + plat.h - y));
+                        ctx.stroke();
+                    }
+                }
+                rIdx++;
+            }
+
+            // Camada de grama/musgo no topo
+            ctx.fillStyle = '#15803d'; // Verde vivo
             ctx.fillRect(plat.x, plat.y, plat.w, 4);
+
+            // Arredondamento do musgo (pingos/folhinhas pendentes)
+            ctx.fillStyle = '#166534';
+            const tufts = plat.w / 16;
+            for (let i = 0; i < tufts; i++) {
+                const tx = plat.x + i * 16 + 8;
+                const th = 4 + (Math.sin(i * 1.7) * 3);
+                ctx.beginPath();
+                ctx.ellipse(tx, plat.y + 4, 6, th, 0, 0, Math.PI);
+                ctx.fill();
+            }
         } else if (plat.type === 'water-floor') {
-            ctx.fillStyle = '#1e293b'; // Chão escuro sob a água
+            ctx.fillStyle = '#0f172a'; // Fundo arenoso escuro sob a água
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
         }
     });
 
-    // 2.5 Desenhar Caixas
+    // 2.3 Desenhar Portões Deslizantes
+    gates.forEach(gate => {
+        ctx.fillStyle = '#78716c';
+        ctx.fillRect(gate.x, gate.y, gate.w, gate.h);
+        
+        ctx.strokeStyle = '#44403c';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(gate.x, gate.y, gate.w, gate.h);
+
+        // Grade metálica interna
+        ctx.strokeStyle = '#292524';
+        ctx.lineWidth = 1.5;
+        for (let gy = gate.y + 15; gy < gate.y + gate.h; gy += 15) {
+            ctx.beginPath();
+            ctx.moveTo(gate.x, gy);
+            ctx.lineTo(gate.x + gate.w, gy);
+            ctx.stroke();
+        }
+    });
+
+    // 2.5 Desenhar Placa de Pressão
+    if (pressurePlate) {
+        ctx.fillStyle = '#44403c';
+        ctx.fillRect(pressurePlate.x - 4, pressurePlate.y + 2, pressurePlate.w + 8, 8);
+        
+        ctx.fillStyle = pressurePlate.activated ? '#22c55e' : '#ef4444';
+        const hBtn = pressurePlate.activated ? 3 : 7;
+        ctx.fillRect(pressurePlate.x, pressurePlate.y + (10 - hBtn), pressurePlate.w, hBtn);
+    }
+
+    // 2.7 Desenhar Caixas (Frágeis e Móveis)
     boxes.forEach(box => {
         if (box.type === 'fragile') {
             ctx.fillStyle = '#92400e'; // Madeira
             ctx.fillRect(box.x, box.y, box.w, box.h);
-            ctx.strokeStyle = '#f97316'; // Laranja
+            
+            // X da caixa frágil
+            ctx.strokeStyle = '#f97316';
             ctx.lineWidth = 4;
-            // Desenhar o X laranja
             ctx.beginPath();
             ctx.moveTo(box.x + 8, box.y + 8);
             ctx.lineTo(box.x + box.w - 8, box.y + box.h - 8);
             ctx.moveTo(box.x + box.w - 8, box.y + 8);
             ctx.lineTo(box.x + 8, box.y + box.h - 8);
             ctx.stroke();
-        } else {
-            ctx.fillStyle = '#57534e'; // Metal/Pedra móvel
-            ctx.fillRect(box.x, box.y, box.w, box.h);
-            ctx.strokeStyle = '#a8a29e';
+
+            // Bordas
+            ctx.strokeStyle = '#78350f';
             ctx.lineWidth = 2;
+            ctx.strokeRect(box.x, box.y, box.w, box.h);
+        } else {
+            // Caixa Móvel
+            ctx.fillStyle = '#57534e';
+            ctx.fillRect(box.x, box.y, box.w, box.h);
+            
+            ctx.strokeStyle = '#a8a29e';
+            ctx.lineWidth = 2.5;
             ctx.strokeRect(box.x + 5, box.y + 5, box.w - 10, box.h - 10);
-            // Alça para o Tuiuiú puxar
+            ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+            // Gancho para o Tuiuiú puxar
+            ctx.strokeStyle = '#d6d3d1';
             ctx.beginPath();
-            ctx.arc(box.x + box.w/2, box.y + 5, 8, Math.PI, 0);
+            ctx.arc(box.x + box.w / 2, box.y + 4, 8, Math.PI, 0);
             ctx.stroke();
         }
-        ctx.strokeRect(box.x, box.y, box.w, box.h);
     });
 
     // 3. Desenhar Elementos Interativos do Puzzle
-
-    // A) Botão no teto/alto (para o Tuiuiú)
+    
+    // A) Botão no teto/alto
     ctx.fillStyle = buttonActivated ? '#22c55e' : '#ef4444';
     ctx.fillRect(highButton.x, highButton.y, highButton.w, highButton.h);
-    // Suporte do botão
     ctx.fillStyle = '#78716c';
     ctx.fillRect(highButton.x - 5, highButton.y + 10, highButton.w + 10, 5);
 
-    // B) Alavanca no fundo da água (para a Capivara)
+    // B) Alavanca no fundo da água
     ctx.save();
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#a8a29e';
-    // Base da alavanca
     ctx.fillStyle = '#57534e';
     ctx.fillRect(waterLever.x - 8, waterLever.y + 15, 30, 15);
-    // Haste
     ctx.beginPath();
     ctx.moveTo(waterLever.x + 8, waterLever.y + 15);
     if (leverActivated) {
-        // Alavanca inclinada para a direita (Ativada)
         ctx.lineTo(waterLever.x + 22, waterLever.y);
         ctx.stroke();
-        // Bola da Alavanca
         ctx.fillStyle = '#22c55e';
         ctx.beginPath();
         ctx.arc(waterLever.x + 22, waterLever.y, 6, 0, Math.PI * 2);
         ctx.fill();
     } else {
-        // Alavanca reta para cima (Desativada)
         ctx.lineTo(waterLever.x + 8, waterLever.y - 10);
         ctx.stroke();
-        // Bola da Alavanca
         ctx.fillStyle = '#ef4444';
         ctx.beginPath();
         ctx.arc(waterLever.x + 8, waterLever.y - 10, 6, 0, Math.PI * 2);
@@ -772,25 +1377,21 @@ function gameLoop() {
     // C) Porta de Saída
     ctx.fillStyle = door.color;
     ctx.fillRect(door.x, door.y, door.w, door.h);
-
-    // Detalhes da Porta (Bordas, Arco e Trinco)
     ctx.strokeStyle = '#1e1b4b';
     ctx.lineWidth = 3;
     ctx.strokeRect(door.x, door.y, door.w, door.h);
 
-    // Se a porta estiver aberta, desenhar abertura luminosa
     if (doorOpened) {
-        ctx.fillStyle = 'rgba(34, 197, 94, 0.2)';
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
         ctx.fillRect(door.x, door.y, door.w, door.h);
-        ctx.fillStyle = '#fef08a'; // Fresta dourada brilhante
+        ctx.fillStyle = '#fef08a';
         ctx.fillRect(door.x + door.w / 2 - 3, door.y, 6, door.h);
     } else {
-        // Cadeado central desenhado
         ctx.fillStyle = '#f59e0b';
         ctx.fillRect(door.x + door.w / 2 - 6, door.y + door.h / 2 - 6, 12, 12);
     }
 
-    // 4. Atualizar Física e Posições (se jogo ativo)
+    // 4. Atualizar Física das Entidades (se ativo)
     if (gameActive && !isVictorious) {
         updateBoxes();
         capivara.update();
@@ -802,32 +1403,109 @@ function gameLoop() {
     capivara.draw();
     tuiuiu.draw();
 
-    // 6. Desenhar a ÁGUA (Transparente no topo para vermos o fundo e os personagens mergulhando)
-    ctx.fillStyle = 'rgba(29, 78, 216, 0.45)'; // Azul translúcido
+    // 6. Desenhar a ÁGUA com Bolhas e Ondulação
+    // Gerar bolhas aleatórias flutuando do fundo da água
+    if (waterArea.w > 0 && Math.random() < 0.08) {
+        const px = waterArea.x + Math.random() * waterArea.w;
+        const py = waterArea.y + waterArea.h - 5;
+        particles.push(new Particle(px, py, 0, -Math.random() * 0.4 - 0.4, 'rgba(147, 197, 253, 0.5)', Math.random() * 2.5 + 1, 0.9, 0.012, 'bubble'));
+    }
+
+    // Atualizar e Desenhar Partículas
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.update();
+        p.draw();
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // Corpo de água translúcido
+    ctx.fillStyle = 'rgba(29, 78, 216, 0.42)';
     ctx.fillRect(waterArea.x, waterArea.y, waterArea.w, waterArea.h);
 
-    // Superfície da água ondulando levemente
-    ctx.fillStyle = 'rgba(96, 165, 250, 0.8)';
-    const waveWidth = 10;
-    const waveHeight = 3;
-    const time = Date.now() * 0.005;
+    // Ondulação na superfície
+    if (waterArea.w > 0) {
+        ctx.fillStyle = 'rgba(96, 165, 250, 0.75)';
+        const waveWidth = 8;
+        const waveHeight = 3.5;
+        const time = Date.now() * 0.0055;
 
-    ctx.beginPath();
-    ctx.moveTo(waterArea.x, waterArea.y);
-    for (let x = waterArea.x; x <= waterArea.x + waterArea.w; x += waveWidth) {
-        const y = waterArea.y + Math.sin((x / waveWidth) + time) * waveHeight;
-        ctx.lineTo(x, y);
+        ctx.beginPath();
+        ctx.moveTo(waterArea.x, waterArea.y);
+        for (let x = waterArea.x; x <= waterArea.x + waterArea.w; x += waveWidth) {
+            const y = waterArea.y + Math.sin((x / waveWidth) + time) * waveHeight;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(waterArea.x + waterArea.w, waterArea.y + waterArea.h);
+        ctx.lineTo(waterArea.x, waterArea.y + waterArea.h);
+        ctx.closePath();
+        ctx.fill();
     }
-    ctx.lineTo(waterArea.x + waterArea.w, waterArea.y + waterArea.h);
-    ctx.lineTo(waterArea.x, waterArea.y + waterArea.h);
-    ctx.closePath();
-    ctx.fill();
 
-    // Loop Infinito
+    // 7. Iluminação de Caverna (Vinheta de gradiente radial no centro do mapa)
+    const ambientLight = ctx.createRadialGradient(
+        GAME_WIDTH / 2, GAME_HEIGHT / 2, 250,
+        GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH * 0.72
+    );
+    ambientLight.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    ambientLight.addColorStop(1, 'rgba(0, 0, 0, 0.72)');
+    ctx.fillStyle = ambientLight;
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    // Efeitos de brilho das luzes ativadas (Composite Mode)
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    
+    if (doorOpened) {
+        const dGlow = ctx.createRadialGradient(
+            door.x + door.w / 2, door.y + door.h / 2, 5,
+            door.x + door.w / 2, door.y + door.h / 2, 70
+        );
+        dGlow.addColorStop(0, 'rgba(34, 197, 94, 0.4)');
+        dGlow.addColorStop(1, 'rgba(34, 197, 94, 0)');
+        ctx.fillStyle = dGlow;
+        ctx.fillRect(door.x - 90, door.y - 90, door.w + 180, door.h + 180);
+    }
+
+    const drawItemGlow = (x, y, color) => {
+        const glow = ctx.createRadialGradient(x, y, 3, x, y, 35);
+        glow.addColorStop(0, color);
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, y, 35, 0, Math.PI * 2);
+        ctx.fill();
+    };
+
+    if (highButton.w > 0) {
+        drawItemGlow(highButton.x + highButton.w / 2, highButton.y + highButton.h / 2, buttonActivated ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.2)');
+    }
+    if (waterLever.w > 0) {
+        drawItemGlow(waterLever.x + waterLever.w / 2, waterLever.y + waterLever.h / 2, leverActivated ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.2)');
+    }
+    ctx.restore();
+
+    // 8. Desenhar tela de transição de fase (Fade Out de transição)
+    if (levelTransitionTimer > 0) {
+        const alpha = Math.min(1.0, levelTransitionTimer / 30);
+        ctx.fillStyle = `rgba(12, 10, 9, ${alpha})`; // Cor de fundo bem escura
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+        ctx.fillStyle = `rgba(245, 158, 11, ${alpha})`; // Cor âmbar
+        ctx.font = "bold 42px 'Fredoka One', cursive, Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(levelNameToShow, GAME_WIDTH / 2, GAME_HEIGHT / 2);
+
+        levelTransitionTimer--;
+    }
+
+    ctx.restore(); // Restaura tremor de tela
+
     requestAnimationFrame(gameLoop);
 }
 
-// Iniciar loop ao carregar a página
+// Iniciar Loop e carregar primeira fase
 window.onload = function () {
     gameLoop();
 };
