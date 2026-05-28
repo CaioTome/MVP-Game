@@ -17,52 +17,32 @@ let isVictorious = false;
 
 // Estrutura física das plataformas (X, Y, Largura, Altura)
 const platforms = [
-    { x: 0, y: 420, w: 550, h: 30, type: 'ground' }, // Chão esquerdo principal
-    { x: 550, y: 445, w: 250, h: 10, type: 'water-floor' }, // Chão sob a água (mais baixo)
-    { x: 0, y: 300, w: 220, h: 15, type: 'platform' }, // Plataforma esquerda média
-    { x: 80, y: 170, w: 180, h: 15, type: 'platform' }, // Plataforma esquerda superior (Botão)
-    { x: 300, y: 220, w: 200, h: 15, type: 'platform' }, // Plataforma central alta
-    { x: 500, y: 310, w: 120, h: 15, type: 'platform' }, // Plataforma sobre a água
+    { x: 0, y: 650, w: 820, h: 70, type: 'ground' }, // Chão esquerdo principal
+    { x: 1100, y: 650, w: 180, h: 70, type: 'ground' }, // Chão direito
+    { x: 820, y: 700, w: 280, h: 20, type: 'water-floor' }, // Fundo da água
+    { x: 800, y: 530, w: 20, h: 120, type: 'ground' }, // Parede esquerda tanque (Altura reduzida)
+    { x: 1100, y: 530, w: 20, h: 120, type: 'ground' }, // Parede direita tanque (Altura reduzida)
+    { x: 0, y: 250, w: 200, h: 20, type: 'platform' }, // Plataforma Botão Tuiuiú
+    { x: 250, y: 0, w: 20, h: 450, type: 'ground' }, // Divisória de puzzle
+    { x: 350, y: 350, w: 150, h: 20, type: 'platform' }, // Início Caixa Móvel
+    { x: 650, y: 540, w: 150, h: 20, type: 'platform' }, // Degrau para mergulho (Altura reduzida)
 ];
 
 // Caixas dinâmicas (Frágeis e Móveis)
 let boxes = [
-    { x: 300, y: 380, w: 40, h: 40, type: 'fragile' },   // Bloqueia caminho da porta
-    { x: 900, y: 680, w: 50, h: 40, type: 'movable' },   // Pode ser usada de degrau
+    { x: 240, y: 450, w: 40, h: 200, type: 'fragile' }, // Barreira que a Capivara deve quebrar
+    { x: 400, y: 300, w: 50, h: 50, type: 'movable', vy: 0 }, // Caixa que o Tuiuiú puxa
 ];
 
 // Definindo a zona de Água (Mergulho da Capivara)
 const waterArea = {
-    x: 550,
-    y: 280,
-    w: 250,
-    h: 170
+    x: 820, y: 530, w: 280, h: 170
 };
 
 // Entidades Interativas
-const door = {
-    x: 380,
-    y: 350,
-    w: 55,
-    h: 70,
-    color: '#ef4444'
-};
-
-const highButton = {
-    x: 100,
-    y: 155,
-    w: 30,
-    h: 15,
-    activated: false
-};
-
-const waterLever = {
-    x: 720,
-    y: 390,
-    w: 15,
-    h: 40,
-    activated: false
-};
+const door = { x: 1180, y: 580, w: 55, h: 70, color: '#ef4444' };
+const highButton = { x: 50, y: 235, w: 30, h: 15, activated: false };
+const waterLever = { x: 950, y: 660, w: 15, h: 40, activated: false };
 
 // Estado das teclas de controle de teclado
 const keys = {
@@ -155,26 +135,26 @@ class Character {
                 if (keys[' '] || touchState.capyUp) { // Usei o up do touch como quebra no mobile por simplicidade
                     boxes = boxes.filter(box => {
                         if (box.type !== 'fragile') return true;
-                        const dist = Math.hypot(
-                            (this.x + this.width / 2) - (box.x + box.w / 2),
-                            (this.y + this.height / 2) - (box.y + box.h / 2)
+                        // Verifica se a capivara está próxima de qualquer ponto da caixa (AABB expandido)
+                        const isNear = (
+                            this.x + this.width + 20 > box.x &&
+                            this.x - 20 < box.x + box.w &&
+                            this.y + this.height + 20 > box.y &&
+                            this.y - 20 < box.y + box.h
                         );
-                        // Se estiver perto e apertar espaço, a caixa some
-                        if (dist < 60) {
-                            // Efeito visual simples poderia ser adicionado aqui
-                            return false; 
-                        }
-                        return true;
+                        return !isNear; // Remove se estiver perto
                     });
                 }
             }
         } else if (this.type === 'tuiuiu') {
             // Tuiuiú flutua se encostar na água, mas não consegue mergulhar fundo
             if (this.inWater && this.y + this.height - 10 > waterArea.y) {
-                // Mantém o tuiuiú flutuando no topo da água
-                this.y = waterArea.y - this.height + 15;
-                this.vy = 0;
-                this.isGrounded = true;
+                // Mantém o tuiuiú flutuando no topo da água apenas se não estiver tentando voar para cima
+                if (!(keys.ArrowUp || touchState.tuiUp)) {
+                    this.y = waterArea.y - this.height + 15;
+                    this.vy = 0;
+                    this.isGrounded = true;
+                }
             }
 
             // Movimento do Tuiuiú (Voo dinâmico)
@@ -202,13 +182,16 @@ class Character {
                             (this.x + this.width / 2) - (box.x + box.w / 2),
                             (this.y + this.height / 2) - (box.y + box.h / 2)
                         );
-                        // Se o pássaro estiver perto da caixa móvel
-                        if (dist < 50) {
-                            // A caixa segue o X do pássaro (puxando)
-                            box.x += (this.x - box.x - (box.w / 2 - this.width / 2)) * 0.1;
+                        if (dist < 70) {
+                            box.isBeingPulled = true;
+                            box.x += (this.x - box.x - (box.w / 2 - this.width / 2)) * 0.15;
+                            box.y += (this.y - box.y - (box.h / 2 - this.height / 2)) * 0.15;
+                            box.vy = 0;
                         }
                     }
                 });
+            } else {
+                boxes.forEach(box => { if (box.type === 'movable') box.isBeingPulled = false; });
             }
         }
 
@@ -453,8 +436,8 @@ class Character {
 }
 
 // Criar personagens nas posições iniciais ideais
-const capivara = new Character(150, 390, '#78350f', 'capivara', 'Capivara');
-const tuiuiu = new Character(250, 370, '#ffffff', 'tuiuiu', 'Tuiuiú');
+const capivara = new Character(100, 600, '#78350f', 'capivara', 'Capivara');
+const tuiuiu = new Character(150, 600, '#ffffff', 'tuiuiu', 'Tuiuiú');
 
 // Inicializar Teclado
 window.addEventListener('keydown', (e) => {
@@ -538,6 +521,26 @@ function toggleTouchControls() {
     container.classList.toggle('hidden');
 }
 
+// Física das caixas móveis
+function updateBoxes() {
+    boxes.forEach(box => {
+        if (box.type === 'movable' && !box.isBeingPulled) {
+            box.vy = (box.vy || 0) + 0.3; // Gravidade
+            box.y += box.vy;
+
+            for (let plat of platforms) {
+                if (box.x < plat.x + plat.w && box.x + box.w > plat.x &&
+                    box.y < plat.y + plat.h && box.y + box.h > plat.y) {
+                    if (box.vy > 0) {
+                        box.y = plat.y - box.h;
+                        box.vy = 0;
+                    }
+                }
+            }
+        }
+    });
+}
+
 // Funções de Controle do Estado do Jogo
 function startGame() {
     document.getElementById('tutorialOverlay').classList.add('hidden');
@@ -552,8 +555,8 @@ function resetGame() {
     resetGameLogic();
     // Reposicionar caixas ao reiniciar
     boxes = [
-        { x: 300, y: 380, w: 40, h: 40, type: 'fragile' },
-        { x: 900, y: 680, w: 50, h: 40, type: 'movable' },
+        { x: 240, y: 450, w: 40, h: 200, type: 'fragile' },
+        { x: 400, y: 300, w: 50, h: 50, type: 'movable', vy: 0 },
     ];
 }
 
@@ -789,6 +792,7 @@ function gameLoop() {
 
     // 4. Atualizar Física e Posições (se jogo ativo)
     if (gameActive && !isVictorious) {
+        updateBoxes();
         capivara.update();
         tuiuiu.update();
         checkCollisionsAndTriggers();
