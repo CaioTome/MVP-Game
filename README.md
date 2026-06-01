@@ -114,7 +114,8 @@ Essa diferença entre os personagens cria puzzles cooperativos em que ambos prec
 
 ### Tela Inicial e Introdução da História
 
-<img width="1899" height="905" alt="f6175291-f1ad-497f-93f5-e2aa06c5bd77" src="https://github.com/user-attachments/assets/b896e14b-6806-43fd-88e0-9d89974f5800" />
+<img width="1896" height="899" alt="image" src="https://github.com/user-attachments/assets/282038cb-027f-41d4-869a-e942c188336b" />
+
 
 
 A aventura começa apresentando a história da Capivara e do Tuiuiú, dois animais do Pantanal que precisam fugir das queimadas e da caça ilegal. A introdução contextualiza o jogador e apresenta a missão principal: encontrar um refúgio seguro no Bioparque Pantanal.
