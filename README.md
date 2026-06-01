@@ -1,8 +1,8 @@
-# Fuga do Pantanal
+# Jornada para o Bioparque Pantanal 
 
 ## Sobre o Jogo
 
-**Fuga do Pantanal** é um jogo de plataforma e puzzle cooperativo local para dois jogadores desenvolvido em **JavaScript** e **HTML5** para a Game Jam EXPO GEEK 2026.
+**Jornada para o Bioparque Pantanal** é um jogo de plataforma e puzzle cooperativo local para dois jogadores desenvolvido em **JavaScript** e **HTML5** para a Game Jam EXPO GEEK 2026.
 
 Em meio às queimadas e à caça ilegal que ameaçam a fauna sul-mato-grossense, uma capivara e um tuiuiú precisam escapar do Pantanal em busca de um refúgio seguro. A jornada leva os dois por uma antiga ruína repleta de enigmas, obstáculos e desafios cooperativos até chegarem ao **Bioparque Pantanal**, em Campo Grande - MS.
 
