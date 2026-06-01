@@ -193,8 +193,8 @@ Campo Grande - Mato Grosso do Sul
 |------------|---------|
 | Caio Tomé | Programação e Game Design |
 | João Pedro de Jesus Perin | Programação e Game Design |
-| Lorran Kaique Silveira Fernandes | Membro Inativo |
-| Kevyn Thiago Freitas Targino | Membro Inativo |
+| Lorran Kaique Silveira Fernandes | Play Test |
+| Kevyn Thiago Freitas Targino | Play Test |
 
 ---
 
