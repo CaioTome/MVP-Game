@@ -26,6 +26,7 @@ const gates = [];
 const boxes = [];
 const fans = [];
 const spikes = [];
+const snakes = [];
 let pressurePlate = null;
 
 const waterArea = { x: 0, y: 0, w: 0, h: 0 };
@@ -340,6 +341,102 @@ function toggleMute() {
     }
 }
 
+// Sistema de Cutscene Inicial
+const cutsceneFrames = [
+    {
+        title: 'Fuga do Pantanal',
+        text: 'Uma queimada feroz e uma caçada cruel forçam a Capivara e o Tuiuiú a deixar o lar no Pantanal. Eles correm juntos em busca de um refúgio seguro.',
+        hint: 'Atravessar a fumaça e escapar dos caçadores é apenas o início da jornada.'
+    },
+    {
+        title: 'Rumo ao Bioparque',
+        text: 'No meio do pântano, os dois encontram uma trilha esquecida que leva ao Bioparque de Campo Grande, MS. É a sua esperança de proteção e cura.',
+        hint: 'O caminho não é fácil, mas o refúgio está próximo se vocês se ajudarem.'
+    },
+    {
+        title: 'O Templo Armadilhado',
+        text: 'Antes do bioparque, há um templo antigo cheio de armadilhas e mecanismos traiçoeiros para impedir invasores.',
+        hint: 'Capivara ativa alavancas e Tuiuiú alcança os botões altos. Trabalho em equipe é a chave.'
+    },
+    {
+        title: 'Proteja o Refúgio',
+        text: 'Os caçadores querem invadir o santuário. Vocês precisam resolver as armadilhas, chegar ao bioparque e impedir que o templo seja invadido.',
+        hint: 'Juntos, a Capivara e o Tuiuiú podem salvar o bioparque e o Pantanal.'
+    }
+];
+let currentCutsceneIndex = 0;
+
+function showCutsceneFrame(index) {
+    const frame = cutsceneFrames[index];
+    const titleEl = document.getElementById('cutsceneTitle');
+    const textEl = document.getElementById('cutsceneText');
+    const hintEl = document.getElementById('cutsceneHint');
+    const buttonEl = document.getElementById('cutsceneButton');
+    const overlay = document.getElementById('tutorialOverlay');
+    if (!frame || !titleEl || !textEl || !hintEl || !buttonEl || !overlay) return;
+
+    // Reiniciar animações CSS brevemente para reaplicar efeitos
+    [titleEl, textEl, hintEl].forEach(el => {
+        el.style.animation = 'none';
+        setTimeout(() => { el.style.animation = ''; }, 10);
+    });
+
+    titleEl.textContent = frame.title;
+    textEl.textContent = frame.text;
+    hintEl.innerHTML = `<strong class="text-amber-300">🎯 Missão:</strong> ${frame.hint}`;
+    buttonEl.textContent = index === cutsceneFrames.length - 1 ? 'Começar Desafio 🚀' : 'Avançar';
+
+    // Garantir que o overlay esteja visível
+    overlay.classList.remove('hidden');
+
+    // Animar caracteres: capivara da esquerda, tuiuiú da direita
+    const capyEl = overlay.querySelector('.cutscene-character.capy');
+    const tuiEl = overlay.querySelector('.cutscene-character.tuiu');
+    [capyEl, tuiEl].forEach(el => {
+        if (!el) return;
+        el.classList.remove('move-in-left', 'move-in-right');
+        void el.offsetWidth; // forçar reflow
+    });
+    if (capyEl) capyEl.classList.add('move-in-left');
+    if (tuiEl) tuiEl.classList.add('move-in-right');
+
+    // Pulso sutil do overlay para impacto visual
+    overlay.classList.remove('overlay-pulse');
+    void overlay.offsetWidth;
+    overlay.classList.add('overlay-pulse');
+    setTimeout(() => overlay.classList.remove('overlay-pulse'), 900);
+}
+
+function nextCutscene() {
+    if (currentCutsceneIndex < cutsceneFrames.length - 1) {
+        currentCutsceneIndex += 1;
+        showCutsceneFrame(currentCutsceneIndex);
+        return;
+    }
+
+    const overlay = document.getElementById('tutorialOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    gameActive = true;
+    loadLevel(0);
+}
+
+function skipCutscene() {
+    const overlay = document.getElementById('tutorialOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    gameActive = true;
+    loadLevel(0);
+}
+
+function initializeCutscene() {
+    currentCutsceneIndex = 0;
+    const overlay = document.getElementById('tutorialOverlay');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+    }
+    showCutsceneFrame(0);
+    gameActive = false;
+}
+
 // Sistema de Partículas (Estética Dinâmica)
 const particles = [];
 class Particle {
@@ -418,6 +515,11 @@ class Character {
         this.name = name;
         this.isGrounded = false;
         this.inWater = false;
+        this.waterCooldown = 0; // frames before re-entering water after exit
+            this.attachedSnake = null;
+            this.attachedAngle = 0;
+            this.attachedAngularVel = 0;
+            this.attachedRopeLength = 0;
         this.facingRight = true;
         this.animationTimer = 0;
     }
@@ -429,15 +531,80 @@ class Character {
         this.vy = 0;
         this.isGrounded = false;
         this.inWater = false;
+        this.waterCooldown = 0;
+        this.attachedSnake = null;
+        this.attachedAngle = 0;
+        this.attachedAngularVel = 0;
+        this.attachedRopeLength = 0;
         this.facingRight = true;
     }
 
     update() {
         this.animationTimer += 0.15;
 
-        // 1. Checar se está na água
+        // 0. Modo balanço: se está preso a uma sucuri, aplicar física de pêndulo
+        if (this.type === 'capivara' && this.attachedSnake != null) {
+            const s = snakes[this.attachedSnake];
+            if (!s) {
+                this.attachedSnake = null;
+            } else {
+                const inputDir = (keys.a || touchState.capyLeft ? -1 : 0) + (keys.d || touchState.capyRight ? 1 : 0);
+                const L = this.attachedRopeLength || (s.length || 160);
+                const g = 0.9;
+                const torque = inputDir * 0.035;
+
+                this.attachedAngularVel += ( - (g / L) * Math.sin(this.attachedAngle) + torque );
+                this.attachedAngularVel *= 0.995; // damping
+                this.attachedAngle += this.attachedAngularVel;
+
+                // Atualizar posição com base no ângulo
+                this.x = s.x + L * Math.sin(this.attachedAngle) - this.width / 2;
+                this.y = s.y + L * Math.cos(this.attachedAngle) - this.height / 2;
+                this.vx = 0; this.vy = 0; this.isGrounded = false;
+
+                // Soltar com espaço (ou botão de ação) — projeta na tangente
+                if (keys[' ']) {
+                    const v = this.attachedAngularVel * L;
+                    this.vx = v * Math.cos(this.attachedAngle);
+                    this.vy = -v * Math.sin(this.attachedAngle);
+                    this.attachedSnake = null;
+                    this.attachedAngularVel = 0;
+                    this.waterCooldown = 6;
+                }
+                return; // pular resto da física enquanto preso
+            }
+        }
+
+        // 1. Checar se está na água (com histerese para evitar flicker)
         const wasInWater = this.inWater;
-        this.inWater = intersects(this, waterArea);
+        const bottom = this.y + this.height;
+        const ENTER_THRESHOLD = 2; // precisa penetrar 2px para entrar
+        const EXIT_THRESHOLD = -4; // precisa subir 4px acima para sair
+
+        // defensiva: só considerar água se a área for válida
+        const hasWater = waterArea && waterArea.w > 0 && waterArea.h > 0;
+
+        if (this.waterCooldown > 0) {
+            this.waterCooldown--;
+            this.inWater = false;
+        } else if (!hasWater) {
+            this.inWater = false;
+        } else {
+            const waterTop = waterArea.y;
+            const waterBottom = waterArea.y + waterArea.h;
+            const relative = bottom - waterTop;
+            // exigir também alguma sobreposição horizontal para contar como dentro da água
+            const centerX = this.x + this.width / 2;
+            const horizontallyOver = centerX > waterArea.x && centerX < (waterArea.x + waterArea.w);
+
+            if (wasInWater) {
+                if (!horizontallyOver || relative < EXIT_THRESHOLD) this.inWater = false;
+                else this.inWater = true;
+            } else {
+                if (horizontallyOver && relative > ENTER_THRESHOLD && this.y < waterBottom) this.inWater = true;
+                else this.inWater = false;
+            }
+        }
 
         // Splash quando entra ou sai da água
         if (this.inWater !== wasInWater) {
@@ -454,34 +621,95 @@ class Character {
         // 2. Aplicar Física apropriada
         if (this.type === 'capivara') {
             if (this.inWater) {
-                // Movimentação de nado suave da Capivara
-                const speed = 2.5;
-                const accel = 0.35;
+                // Movimentação de nado suave da Capivara com transições mais suaves
+                const speed = 2.6;
+                const accel = 0.32;
                 const wantsToSurface = keys.w || touchState.capyUp;
                 const wantsToDive = keys.s || touchState.capyDown;
                 const floatSurfaceY = waterArea.y - this.height + CAPYBARA_SURFACE_DEPTH;
+                const EXIT_MARGIN = 6; // margem para permitir sair da água
 
+                // Entrada na água: amortecer queda brusca
+                if (!wasInWater && this.inWater) {
+                    if (this.vy > 0) this.vy *= 0.28;
+                    // pequenos respingos já gerados acima
+                }
+
+                // Movimento horizontal com inércia reduzida
                 if (keys.a || touchState.capyLeft) { this.vx = Math.max(-speed, this.vx - accel); this.facingRight = false; }
                 else if (keys.d || touchState.capyRight) { this.vx = Math.min(speed, this.vx + accel); this.facingRight = true; }
-                else { this.vx *= 0.85; }
+                else { this.vx *= 0.88; }
 
-                if (wantsToSurface) { this.vy = Math.max(-speed, this.vy - accel); }
-                else if (wantsToDive) { this.vy = Math.min(speed, this.vy + accel); }
-                else { this.vy = Math.max(-CAPYBARA_FLOAT_SPEED, this.vy - CAPYBARA_BUOYANCY); }
+                // Movimento vertical controlado
+                if (wantsToSurface) {
+                    // quando o jogador pressiona subir, aplique impulso suave para emergir
+                    this.vy = Math.max(-speed * 1.6, this.vy - accel);
+                } else if (wantsToDive) {
+                    this.vy = Math.min(speed, this.vy + accel);
+                } else {
+                    // flutuação natural para cima (boiamento)
+                    this.vy = Math.max(-CAPYBARA_FLOAT_SPEED, this.vy - CAPYBARA_BUOYANCY * 0.8);
+                }
 
-                if (!wantsToSurface && !wantsToDive && this.y <= floatSurfaceY) {
-                    this.y = floatSurfaceY;
-                    this.vy = Math.max(0, this.vy) * 0.35;
+                // Suavizar aproximação à superfície em vez de travar a posição
+                if (!wantsToSurface && !wantsToDive) {
+                    if (this.y < floatSurfaceY) {
+                        // aproximação suave (lerp)
+                        this.y += (floatSurfaceY - this.y) * 0.22;
+                        if (Math.abs(this.y - floatSurfaceY) < 0.6) {
+                            this.y = floatSurfaceY;
+                            this.vy = Math.max(0, this.vy) * 0.36;
+                        }
+                    }
+                }
+
+                // Permitir saída imediata quando o jogador pressiona subir perto da superfície
+                if (wantsToSurface && (this.y + this.height) <= (waterArea.y + EXIT_MARGIN)) {
+                    // sair da água: conservar impulso para sair naturalmente
+                    this.inWater = false;
+                    // garantir que a personagem tenha um pequeno impulso para emergir
+                    this.vy = Math.min(this.vy, -3.6);
+                    this.isGrounded = false;
+                    // efeito de splash ao emergir
+                    soundFX.playSplash();
+                    for (let i = 0; i < 8; i++) {
+                        const px = this.x + this.width / 2 + (Math.random() - 0.5) * this.width;
+                        const py = waterArea.y;
+                        const vx = (Math.random() - 0.5) * 2.4;
+                        const vy = -Math.random() * 2.4 - 0.6;
+                        particles.push(new Particle(px, py, vx, vy, '#60a5fa', Math.random() * 2 + 1, 0.9, 0.03, 'bubble'));
+                    }
                 }
 
                 this.isGrounded = false;
 
-                // Gerar bolhas enquanto nada
-                if ((Math.abs(this.vx) > 0.5 || Math.abs(this.vy) > 0.5) && Math.random() < 0.25) {
+                // Gerar bolhas enquanto nada (menos frequente quando parado)
+                if ((Math.abs(this.vx) > 0.4 || Math.abs(this.vy) > 0.4) && Math.random() < 0.22) {
                     particles.push(new Particle(this.x + this.width / 2, this.y + this.height / 2, (Math.random() - 0.5) * 1, (Math.random() - 0.5) * 1, 'rgba(191, 219, 254, 0.7)', Math.random() * 3 + 1, 1.0, 0.02, 'bubble'));
                 }
             } else {
                 // Movimento terrestre com inércia
+
+                // Tentativa de agarrar uma sucuri: quando o jogador pressiona subir perto do ponto de ancoragem
+                if ((keys.w || touchState.capyUp) && !this.inWater && this.attachedSnake == null) {
+                    for (let i = 0; i < snakes.length; i++) {
+                        const s = snakes[i];
+                        const pivotX = s.x;
+                        const pivotY = s.y;
+                        const cx = this.x + this.width / 2;
+                        const cy = this.y + this.height / 2;
+                        const dist = Math.hypot(cx - pivotX, cy - pivotY);
+                        if (dist < (s.grabRadius || 52)) {
+                            this.attachedSnake = i;
+                            this.attachedRopeLength = s.length || Math.max(80, Math.floor(dist));
+                            this.attachedAngle = Math.atan2(cx - pivotX, cy - pivotY);
+                            this.attachedAngularVel = 0;
+                            this.vx = 0; this.vy = 0; this.isGrounded = false;
+                            soundFX.playGrab?.();
+                            break;
+                        }
+                    }
+                }
                 const speed = 3.5;
                 const accel = 0.5;
                 const gravity = 0.4;
@@ -648,32 +876,57 @@ class Character {
         // Personagens colidem contra plataformas fixas, caixas e portões dinâmicos
         const allSolid = [...platforms, ...boxes, ...gates];
         for (let plat of allSolid) {
+            // ignorar colisões com caixas que o tuiuiu está puxando/segurando
             if (this.type === 'tuiuiu' && plat.isBeingPulled && plat.pulledBy === this.type) {
                 continue;
             }
 
-            if (intersects(this, plat)) {
+            if (!intersects(this, plat)) continue;
 
-                if (this.type === 'tuiuiu' && plat.type === 'water-floor') {
-                    continue; // Tuiuiú não bate no chão subaquático
-                }
+            // Tuiuiú passa por baixo de 'water-floor'
+            if (this.type === 'tuiuiu' && plat.type === 'water-floor') continue;
 
-                if (axis === 'x') {
-                    if (this.vx > 0) {
-                        this.x = plat.x - this.width;
-                    } else if (this.vx < 0) {
-                        this.x = plat.x + plat.w;
-                    }
-                    this.vx = 0;
+            // Determinar de onde veio a colisão usando posição anterior
+            const prevRight = prevX + this.width;
+            const prevLeft = prevX;
+            const prevBottom = prevY + this.height;
+            const prevTop = prevY;
+
+            const platRight = plat.x + getWidth(plat);
+            const platBottom = plat.y + getHeight(plat);
+
+            const cameFromLeft = prevRight <= plat.x;
+            const cameFromRight = prevLeft >= platRight;
+            const cameFromTop = prevBottom <= plat.y;
+            const cameFromBottom = prevTop >= platBottom;
+
+            if (axis === 'x') {
+                if (cameFromLeft) {
+                    this.x = plat.x - this.width;
+                } else if (cameFromRight) {
+                    this.x = plat.x + getWidth(plat);
                 } else {
+                    // fallback baseado na velocidade
+                    if (this.vx > 0) this.x = plat.x - this.width;
+                    else if (this.vx < 0) this.x = plat.x + getWidth(plat);
+                }
+                this.vx = 0;
+            } else if (axis === 'y') {
+                if (cameFromTop) {
+                    this.y = plat.y - this.height;
+                    this.isGrounded = true;
+                } else if (cameFromBottom) {
+                    this.y = plat.y + getHeight(plat);
+                } else {
+                    // fallback baseado na velocidade
                     if (this.vy > 0) {
                         this.y = plat.y - this.height;
                         this.isGrounded = true;
                     } else if (this.vy < 0) {
-                        this.y = plat.y + plat.h;
+                        this.y = plat.y + getHeight(plat);
                     }
-                    this.vy = 0;
                 }
+                this.vy = 0;
             }
         }
     }
@@ -1097,6 +1350,8 @@ function loadLevel(index) {
 
     // Carregar novas mecânicas
     resetArray(fans, (lvl.fans ?? []).map(f => ({ force: 0.45, maxSpeed: 5, pushX: 0, ...f })));
+    // Carregar sucuris (pontos de ancoragem para balançar)
+    resetArray(snakes, (lvl.snakes ?? []).map(s => ({ ...s })));
     resetArray(spikes, (lvl.spikes ?? []).map(s => ({ ...s })));
 
     // Configurar áreas e interações
@@ -1124,10 +1379,18 @@ function loadLevel(index) {
     isVictorious = false;
 
     // Reposicionar personagens
+    if (!lvl.capyStart) {
+        console.warn('level', index, 'missing capyStart — using fallback');
+        lvl.capyStart = { x: 80, y: 600 };
+    }
     capivara.startX = lvl.capyStart.x;
     capivara.startY = lvl.capyStart.y;
     capivara.reset();
 
+    if (!lvl.tuiStart) {
+        console.warn('level', index, 'missing tuiStart — using fallback');
+        lvl.tuiStart = { x: 120, y: 600 };
+    }
     tuiuiu.startX = lvl.tuiStart.x;
     tuiuiu.startY = lvl.tuiStart.y;
     tuiuiu.reset();
@@ -1231,24 +1494,41 @@ function setIndicatorActive(element, isActive) {
 function resolveBoxPlatformCollisions(box, prevX, prevY, axis) {
     const allSolid = [...platforms, ...gates];
     for (let plat of allSolid) {
-        if (intersects(box, plat)) {
+        if (!intersects(box, plat)) continue;
 
-            if (axis === 'x') {
-                if (box.vx > 0) {
-                    box.x = plat.x - box.w;
-                } else if (box.vx < 0) {
-                    box.x = plat.x + plat.w;
-                }
-                box.vx = 0;
+        const prevRight = prevX + box.w;
+        const prevLeft = prevX;
+        const prevBottom = prevY + box.h;
+        const prevTop = prevY;
+
+        const platRight = plat.x + getWidth(plat);
+        const platBottom = plat.y + getHeight(plat);
+
+        const cameFromLeft = prevRight <= plat.x;
+        const cameFromRight = prevLeft >= platRight;
+        const cameFromTop = prevBottom <= plat.y;
+        const cameFromBottom = prevTop >= platBottom;
+
+        if (axis === 'x') {
+            if (cameFromLeft) {
+                box.x = plat.x - box.w;
+            } else if (cameFromRight) {
+                box.x = plat.x + getWidth(plat);
             } else {
-                if (box.vy > 0) {
-                    box.y = plat.y - box.h;
-                    box.vy = 0;
-                } else if (box.vy < 0) {
-                    box.y = plat.y + plat.h;
-                    box.vy = 0;
-                }
+                if (box.vx > 0) box.x = plat.x - box.w;
+                else if (box.vx < 0) box.x = plat.x + getWidth(plat);
             }
+            box.vx = 0;
+        } else {
+            if (cameFromTop) {
+                box.y = plat.y - box.h;
+            } else if (cameFromBottom) {
+                box.y = plat.y + getHeight(plat);
+            } else {
+                if (box.vy > 0) box.y = plat.y - box.h;
+                else if (box.vy < 0) box.y = plat.y + getHeight(plat);
+            }
+            box.vy = 0;
         }
     }
 }
@@ -1291,7 +1571,13 @@ function updateBoxes() {
 }
 
 function startGame() {
-    document.getElementById('tutorialOverlay').classList.add('hidden');
+    const overlay = document.getElementById('tutorialOverlay');
+    if (overlay && !overlay.classList.contains('hidden') && currentCutsceneIndex < cutsceneFrames.length - 1) {
+        nextCutscene();
+        return;
+    }
+
+    if (overlay) overlay.classList.add('hidden');
     gameActive = true;
     loadLevel(0);
 }
@@ -1615,6 +1901,40 @@ function gameLoop() {
         }
     });
 
+    // 2.8 Desenhar Sucuris (pontos de ancoragem e cordas)
+    snakes.forEach((s, si) => {
+        const pivotX = s.x;
+        const pivotY = s.y;
+        const L = s.length || 160;
+        // se alguém está preso, desenhar até a capivara
+        let endX = pivotX;
+        let endY = pivotY + L;
+        if (capivara && capivara.attachedSnake === si) {
+            endX = capivara.x + capivara.width / 2;
+            endY = capivara.y + capivara.height / 2;
+        } else if (s.angle) {
+            endX = pivotX + L * Math.sin(s.angle);
+            endY = pivotY + L * Math.cos(s.angle);
+        } else {
+            endX = pivotX;
+            endY = pivotY + L;
+        }
+
+        // Corpo da sucuri (linha grossa)
+        ctx.strokeStyle = '#166534';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(pivotX, pivotY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+
+        // Cabeça/âncora
+        ctx.fillStyle = '#14532d';
+        ctx.beginPath();
+        ctx.arc(pivotX, pivotY, 8, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
     // 3. Desenhar Elementos Interativos do Puzzle
     
     // A) Botão no teto/alto
@@ -1780,6 +2100,9 @@ function gameLoop() {
 }
 
 // Iniciar Loop e carregar primeira fase
-window.onload = function () {
+window.addEventListener('DOMContentLoaded', () => {
+    initializeCutscene();
+    window.startGame = startGame;
+    window.skipCutscene = skipCutscene;
     gameLoop();
-};
+});

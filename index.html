@@ -22,6 +22,121 @@
         canvas {
             touch-action: none;
         }
+
+        /* Animações da Cutscene */
+        @keyframes fadeInOverlay {
+            from {
+                opacity: 0;
+                backdrop-filter: blur(0px);
+            }
+            to {
+                opacity: 1;
+                backdrop-filter: blur(4px);
+            }
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-40px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(40px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes bounceCharacter {
+            0%, 100% {
+                transform: translateY(0) scale(1);
+            }
+            50% {
+                transform: translateY(-15px) scale(1.05);
+            }
+        }
+
+        @keyframes glowPulse {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 40px rgba(245, 158, 11, 0.6);
+            }
+        }
+
+        @keyframes buttonPulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.02);
+            }
+        }
+
+        @keyframes fadeInText {
+            0% {
+                opacity: 0;
+                letter-spacing: 2px;
+            }
+            100% {
+                opacity: 1;
+                letter-spacing: normal;
+            }
+        }
+
+        #tutorialOverlay:not(.hidden) {
+            animation: fadeInOverlay 0.6s ease-out;
+        }
+
+        #cutsceneTitle {
+            animation: slideInDown 0.8s ease-out, fadeInText 1.2s ease-out;
+        }
+
+        #cutsceneText {
+            animation: slideInUp 0.9s ease-out 0.2s both;
+        }
+
+        #cutsceneHint {
+            animation: slideInUp 0.9s ease-out 0.4s both;
+        }
+
+        .cutscene-buttons {
+            animation: slideInUp 1s ease-out 0.6s both;
+        }
+
+        .cutscene-character {
+            display: inline-block;
+            animation: bounceCharacter 2.5s ease-in-out infinite;
+        }
+
+        .cutscene-character.capy {
+            animation-delay: 0s;
+            margin: 0 10px 0 0;
+        }
+
+        .cutscene-character.tuiu {
+            animation-delay: 0.3s;
+            margin: 0 0 0 10px;
+        }
+
+        #cutsceneButton:hover {
+            animation: buttonPulse 0.6s ease-in-out;
+        }
+
+        .cutscene-decorative {
+            animation: glowPulse 3s ease-in-out infinite;
+        }
     </style>
 </head>
 
@@ -80,34 +195,31 @@
             class="relative bg-stone-950 rounded-2xl overflow-hidden shadow-2xl border-4 border-stone-700 w-full max-w-4xl aspect-[16/9]">
             <canvas id="gameCanvas" class="w-full h-full block"></canvas>
 
-            <!-- Overlay de Tutorial / Boas-vindas -->
+            <!-- Overlay de Tutorial / Cutscene Inicial -->
             <div id="tutorialOverlay"
                 class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center transition-all duration-300 z-10">
-                <h2 class="title-font text-3xl md:text-4xl text-amber-500 mb-2">Trabalho em Equipe!</h2>
-                <p class="text-stone-300 max-w-md text-sm md:text-base mb-6">
-                    A Capivara e o Tuiuiú ficaram presos em uma antiga ruína inundada do Pantanal. Combine as
-                    habilidades deles para abrir o portal e escapar!
-                </p>
-                <div class="grid grid-cols-2 gap-6 max-w-lg w-full mb-8 text-left text-xs md:text-sm">
-                    <div class="bg-stone-800/80 p-4 rounded-xl border border-stone-700">
-                        <div class="flex items-center gap-2 mb-2 text-amber-400 font-bold">
-                            <span>🦦 Capivara</span>
-                        </div>
-                        <p class="text-stone-400 mb-3">Pode mergulhar e <strong class="text-orange-400">quebrar obstáculos</strong> com um X laranja.</p>
-                        <span class="bg-stone-900 px-2 py-1 rounded text-stone-300 font-mono text-xs">Controles: WASD + Espaço</span>
-                    </div>
-                    <div class="bg-stone-800/80 p-4 rounded-xl border border-stone-700">
-                        <div class="flex items-center gap-2 mb-2 text-amber-400 font-bold">
-                            <span>🐦 Tuiuiú</span>
-                        </div>
-                        <p class="text-stone-400 mb-3">Pode voar e <strong class="text-sky-400">puxar caixas</strong> pesadas para ajudar o parceiro.</p>
-                        <span class="bg-stone-900 px-2 py-1 rounded text-stone-300 font-mono text-xs">Controles: Setas + Enter</span>
-                    </div>
+                <div class="mb-4 text-5xl md:text-6xl flex items-center justify-center">
+                    <span class="cutscene-character capy">🦫</span>
+                    <span class="text-4xl mx-3">→</span>
+                    <span class="cutscene-character tuiu">🐦</span>
                 </div>
-                <button onclick="startGame()"
-                    class="bg-green-600 hover:bg-green-500 text-white font-bold text-lg px-8 py-3 rounded-xl shadow-lg transition-all transform active:scale-95">
-                    Começar Desafio 🚀
-                </button>
+                <h2 id="cutsceneTitle" class="title-font text-3xl md:text-4xl text-amber-500 mb-2">Fuga do Pantanal</h2>
+                <p id="cutsceneText" class="text-stone-300 max-w-md text-sm md:text-base mb-6">
+                    Uma queimada violenta e uma caçada implacável forçam a Capivara e o Tuiuiú a abandonar o seu lar.
+                </p>
+                <div id="cutsceneHint" class="bg-stone-800/80 p-4 rounded-xl border border-stone-700 max-w-lg w-full text-left text-xs md:text-sm text-stone-300 mb-8 cutscene-decorative">
+                    <strong class="text-amber-300">🎯 Missão:</strong> Encontre o caminho até o Bioparque de Campo Grande, MS, e impeça os caçadores de invadirem o santuário.
+                </div>
+                <div class="flex flex-col sm:flex-row gap-3 w-full max-w-sm justify-center cutscene-buttons">
+                    <button id="cutsceneButton" onclick="startGame()"
+                        class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold text-lg px-8 py-3 rounded-xl shadow-lg transition-all transform active:scale-95">
+                        Avançar
+                    </button>
+                    <button onclick="skipCutscene()"
+                        class="flex-1 bg-stone-700 hover:bg-stone-600 text-stone-200 font-bold text-lg px-8 py-3 rounded-xl shadow-lg transition-all transform active:scale-95">
+                        Pular História
+                    </button>
+                </div>
             </div>
 
             <!-- Overlay de Vitória -->
