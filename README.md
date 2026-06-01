@@ -110,6 +110,48 @@ Essa diferença entre os personagens cria puzzles cooperativos em que ambos prec
 
 ---
 
+## Galeria do Jogo
+
+### Tela Inicial e Introdução da História
+
+<img width="1899" height="905" alt="f6175291-f1ad-497f-93f5-e2aa06c5bd77" src="https://github.com/user-attachments/assets/b896e14b-6806-43fd-88e0-9d89974f5800" />
+
+
+A aventura começa apresentando a história da Capivara e do Tuiuiú, dois animais do Pantanal que precisam fugir das queimadas e da caça ilegal. A introdução contextualiza o jogador e apresenta a missão principal: encontrar um refúgio seguro no Bioparque Pantanal.
+
+---
+
+### Primeiros Desafios da Ruína
+
+<img width="1023" height="569" alt="fc4489db-fadc-4060-ae82-9dae623d511b" src="https://github.com/user-attachments/assets/d1fd3e3a-1cf7-4df5-b6ed-f96e327b5d7d" />
+
+
+Nas primeiras salas, os jogadores aprendem as mecânicas básicas de cooperação. Botões, caixas e plataformas exigem que Capivara e Tuiuiú trabalhem juntos para abrir caminhos e avançar pela antiga ruína.
+
+---
+
+### Puzzles Cooperativos
+
+<img width="1031" height="579" alt="39ce3d2d-3de9-4087-a87b-68ef21024620" src="https://github.com/user-attachments/assets/4d65afaa-b6a4-442f-a164-baeca8852a12" />
+
+Os desafios foram projetados para explorar as habilidades únicas de cada personagem. Enquanto o Tuiuiú movimenta caixas e alcança áreas elevadas, a Capivara utiliza sua força para remover obstáculos e ativar mecanismos importantes.
+
+---
+
+### Desafios Aquáticos
+
+<img width="1037" height="583" alt="image" src="https://github.com/user-attachments/assets/8bbbc305-0339-4383-bf79-c7253ad7ff5b" />
+
+
+A água desempenha papel fundamental em diversos enigmas. A Capivara pode nadar, boiar e mergulhar para acionar alavancas submersas, enquanto o Tuiuiú auxilia na superfície, criando situações que exigem coordenação entre os jogadores.
+
+---
+
+### Cooperação como Mecânica Central
+
+Ao longo da jornada, nenhuma fase pode ser concluída utilizando apenas um personagem. Todos os desafios foram construídos em torno da cooperação local, incentivando comunicação, planejamento e trabalho em equipe para superar os obstáculos da ruína e alcançar o Bioparque Pantanal.
+
+
 ## Temática
 
 O jogo aborda problemas reais enfrentados pelo Pantanal:
