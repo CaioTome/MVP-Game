@@ -41,10 +41,10 @@ const CAPYBARA_FLOAT_SPEED = 1.6;
 const CAPYBARA_SURFACE_DEPTH = 6;
 
 const HUD_CLASSES = {
-    doorOpen: "text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30",
-    doorClosed: "text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30",
-    soundOn: "bg-stone-700 hover:bg-stone-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all shadow-md",
-    soundOff: "bg-stone-800 hover:bg-stone-750 text-stone-400 text-xs font-bold px-3 py-1.5 rounded-lg transition-all shadow-inner border border-stone-850"
+    doorOpen: "text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.2)]",
+    doorClosed: "text-xs px-2.5 py-1 rounded-full font-bold bg-red-500/10 text-red-400 border border-red-500/20 shadow-sm",
+    soundOn: "bg-emerald-800 hover:bg-emerald-700 text-emerald-100 text-xs font-bold px-3 py-1.5 rounded-lg transition-all shadow-md hover:shadow-emerald-900/30 hover:scale-105 active:scale-95 border border-emerald-700",
+    soundOff: "bg-stone-800 hover:bg-stone-750 text-stone-400 text-xs font-bold px-3 py-1.5 rounded-lg transition-all shadow-inner border border-stone-700"
 };
 
 const SIZE_KEYS = {
@@ -306,7 +306,7 @@ function toggleMute() {
 // Sistema de Cutscene Inicial
 const cutsceneFrames = [
     {
-        title: 'Fuga do Pantanal',
+        title: 'Jornada para o Bioparque Pantanal',
         text: 'Uma queimada feroz e uma caçada cruel forçam a Capivara e o Tuiuiú a deixar o lar no Pantanal. Eles correm juntos em busca de um refúgio seguro.',
         hint: 'Atravessar a fumaça e escapar dos caçadores é apenas o início da jornada.'
     },
@@ -1435,10 +1435,17 @@ function toggleTouchControls() {
 }
 
 function setIndicatorActive(element, isActive) {
+    if (!element) return;
     if (isActive) {
-        element.classList.replace('bg-red-500', 'bg-green-500');
+        element.classList.remove('bg-red-500');
+        element.classList.add('bg-emerald-500');
+        element.classList.remove('shadow-[0_0_10px_rgba(239,68,68,0.5)]');
+        element.classList.add('shadow-[0_0_10px_rgba(16,185,129,0.6)]');
     } else {
-        element.classList.replace('bg-green-500', 'bg-red-500');
+        element.classList.remove('bg-emerald-500');
+        element.classList.add('bg-red-500');
+        element.classList.remove('shadow-[0_0_10px_rgba(16,185,129,0.6)]');
+        element.classList.add('shadow-[0_0_10px_rgba(239,68,68,0.5)]');
     }
 }
 
