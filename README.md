@@ -191,10 +191,10 @@ Campo Grande - Mato Grosso do Sul
 
 | Integrante | Função |
 |------------|---------|
-| Caio Tomé | Game Design |
-| João Pedro de Jesus Perin | Programação |
-| Lorran Kaique Silveira Fernandes | Arte |
-| Kevyn Thiago Freitas Targino | Level Design |
+| Caio Tomé | Programação e Game Design |
+| João Pedro de Jesus Perin | Programação e Game Design |
+| Lorran Kaique Silveira Fernandes | Membro Inativo |
+| Kevyn Thiago Freitas Targino | Membro Inativo |
 
 ---
 
