@@ -148,21 +148,54 @@ class SoundFX {
         }
     }
 
+    createOscillator(type = 'sine') {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        return { osc, gain };
+    }
+
+    createNoiseSound({ duration, filterType = 'lowpass', filterFreq = 700, filterTargetFreq = 80, q = 1.2, gainStart = 0.2, gainEnd = 0.01, gainCurve = 'linear' }) {
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = filterType;
+        filter.frequency.setValueAtTime(filterFreq, this.ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(filterTargetFreq, this.ctx.currentTime + duration);
+        filter.Q.value = q;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(gainStart, this.ctx.currentTime);
+        if (gainCurve === 'exponential') {
+            gain.gain.exponentialRampToValueAtTime(gainEnd, this.ctx.currentTime + duration);
+        } else {
+            gain.gain.linearRampToValueAtTime(gainEnd, this.ctx.currentTime + duration);
+        }
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+    }
+
     playJump() {
         if (this.muted) return;
         this.init();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.type = 'triangle';
+        const { osc, gain } = this.createOscillator('triangle');
         osc.frequency.setValueAtTime(150, this.ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(320, this.ctx.currentTime + 0.15);
-
         gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
         gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
-
         osc.start();
         osc.stop(this.ctx.currentTime + 0.15);
     }
@@ -170,97 +203,47 @@ class SoundFX {
     playFlap() {
         if (this.muted) return;
         this.init();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.type = 'sine';
+        const { osc, gain } = this.createOscillator('sine');
         osc.frequency.setValueAtTime(110, this.ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + 0.12);
-
         gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
         gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
-
         osc.start();
         osc.stop(this.ctx.currentTime + 0.12);
+    }
+
+    playGrab() {
+        if (this.muted) return;
+        this.init();
+        const { osc, gain } = this.createOscillator('square');
+        osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+        osc.frequency.setValueAtTime(180, this.ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.06);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.06);
     }
 
     playBreak() {
         if (this.muted) return;
         this.init();
-        
-        const bufferSize = this.ctx.sampleRate * 0.25;
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-
-        const noise = this.ctx.createBufferSource();
-        noise.buffer = buffer;
-
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.value = 350;
-        filter.Q.value = 1.2;
-
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
-
-        noise.connect(filter);
-        filter.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        noise.start();
+        this.createNoiseSound({ duration: 0.25, filterType: 'bandpass', filterFreq: 350, filterTargetFreq: 350, q: 1.2, gainStart: 0.25, gainEnd: 0.01, gainCurve: 'exponential' });
     }
 
     playSplash() {
         if (this.muted) return;
         this.init();
-        
-        const bufferSize = this.ctx.sampleRate * 0.3;
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-
-        const noise = this.ctx.createBufferSource();
-        noise.buffer = buffer;
-
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(700, this.ctx.currentTime);
-        filter.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.3);
-
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
-
-        noise.connect(filter);
-        filter.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        noise.start();
+        this.createNoiseSound({ duration: 0.3, filterType: 'lowpass', filterFreq: 700, filterTargetFreq: 80, gainStart: 0.2, gainEnd: 0.01, gainCurve: 'linear' });
     }
 
     playTrigger() {
         if (this.muted) return;
         this.init();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.type = 'square';
+        const { osc, gain } = this.createOscillator('square');
         osc.frequency.setValueAtTime(550, this.ctx.currentTime);
         osc.frequency.setValueAtTime(850, this.ctx.currentTime + 0.08);
-
         gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
         gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
-
         osc.start();
         osc.stop(this.ctx.currentTime + 0.2);
     }
@@ -268,18 +251,11 @@ class SoundFX {
     playPlateActivate() {
         if (this.muted) return;
         this.init();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.type = 'sine';
+        const { osc, gain } = this.createOscillator('sine');
         osc.frequency.setValueAtTime(220, this.ctx.currentTime);
         osc.frequency.setValueAtTime(294, this.ctx.currentTime + 0.08);
-
         gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
         gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
-
         osc.start();
         osc.stop(this.ctx.currentTime + 0.2);
     }
@@ -287,18 +263,11 @@ class SoundFX {
     playPlateDeactivate() {
         if (this.muted) return;
         this.init();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.type = 'sine';
+        const { osc, gain } = this.createOscillator('sine');
         osc.frequency.setValueAtTime(294, this.ctx.currentTime);
         osc.frequency.setValueAtTime(220, this.ctx.currentTime + 0.08);
-
         gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
         gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
-
         osc.start();
         osc.stop(this.ctx.currentTime + 0.15);
     }
@@ -307,20 +276,13 @@ class SoundFX {
         if (this.muted) return;
         this.init();
         const now = this.ctx.currentTime;
-        const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50]; // C Major
+        const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
         notes.forEach((freq, idx) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.connect(gain);
-            gain.connect(this.ctx.destination);
-
-            osc.type = 'triangle';
+            const { osc, gain } = this.createOscillator('triangle');
             osc.frequency.setValueAtTime(freq, now + idx * 0.1);
-
             gain.gain.setValueAtTime(0.15, now + idx * 0.1);
             gain.gain.setValueAtTime(0.15, now + idx * 0.1 + 0.15);
             gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.3);
-
             osc.start(now + idx * 0.1);
             osc.stop(now + idx * 0.1 + 0.3);
         });
@@ -705,7 +667,7 @@ class Character {
                             this.attachedAngle = Math.atan2(cx - pivotX, cy - pivotY);
                             this.attachedAngularVel = 0;
                             this.vx = 0; this.vy = 0; this.isGrounded = false;
-                            soundFX.playGrab?.();
+                            soundFX.playGrab();
                             break;
                         }
                     }
@@ -1408,41 +1370,31 @@ function loadLevel(index) {
 }
 
 // Inicializar Teclado
+const keyMappings = {
+    'w': 'w', 'a': 'a', 's': 's', 'd': 'd', ' ': ' ',
+    'arrowup': 'ArrowUp', 'arrowdown': 'ArrowDown', 'arrowleft': 'ArrowLeft', 'arrowright': 'ArrowRight',
+    'enter': 'Enter'
+};
+
 window.addEventListener('keydown', (e) => {
     if (!gameActive) return;
     const k = e.key.toLowerCase();
+    const mappedKey = keyMappings[k];
 
-    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
-        e.preventDefault();
+    if (mappedKey) {
+        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) {
+            e.preventDefault();
+        }
+        keys[mappedKey] = true;
     }
-
-    if (k === 'w') keys.w = true;
-    if (k === 'a') keys.a = true;
-    if (k === 's') keys.s = true;
-    if (k === 'd') keys.d = true;
-    if (k === ' ') keys[' '] = true;
-
-    if (e.key === 'ArrowUp') keys.ArrowUp = true;
-    if (e.key === 'ArrowDown') keys.ArrowDown = true;
-    if (e.key === 'ArrowLeft') keys.ArrowLeft = true;
-    if (e.key === 'ArrowRight') keys.ArrowRight = true;
-    if (e.key === 'Enter') keys.Enter = true;
 });
 
 window.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase();
-
-    if (k === 'w') keys.w = false;
-    if (k === 'a') keys.a = false;
-    if (k === 's') keys.s = false;
-    if (k === 'd') keys.d = false;
-    if (k === ' ') keys[' '] = false;
-
-    if (e.key === 'ArrowUp') keys.ArrowUp = false;
-    if (e.key === 'ArrowDown') keys.ArrowDown = false;
-    if (e.key === 'ArrowLeft') keys.ArrowLeft = false;
-    if (e.key === 'ArrowRight') keys.ArrowRight = false;
-    if (e.key === 'Enter') keys.Enter = false;
+    const mappedKey = keyMappings[k];
+    if (mappedKey) {
+        keys[mappedKey] = false;
+    }
 });
 
 // Configurar Controles de Toque para Mobile
