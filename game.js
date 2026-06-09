@@ -14,6 +14,10 @@ let buttonActivated = false;
 let doorOpened = false;
 let isVictorious = false;
 
+// Estado da Fase Zero (corredor de entrada imparável)
+let isPhaseZero = false;
+let phase0TuiuiuCaged = false;
+
 // Estado do Nível e Transições
 let currentLevelIndex = 0;
 let levelTransitionTimer = 0;
@@ -478,10 +482,10 @@ class Character {
         this.isGrounded = false;
         this.inWater = false;
         this.waterCooldown = 0; // frames before re-entering water after exit
-            this.attachedSnake = null;
-            this.attachedAngle = 0;
-            this.attachedAngularVel = 0;
-            this.attachedRopeLength = 0;
+        this.attachedSnake = null;
+        this.attachedAngle = 0;
+        this.attachedAngularVel = 0;
+        this.attachedRopeLength = 0;
         this.facingRight = true;
         this.animationTimer = 0;
     }
@@ -515,7 +519,7 @@ class Character {
                 const g = 0.9;
                 const torque = inputDir * 0.035;
 
-                this.attachedAngularVel += ( - (g / L) * Math.sin(this.attachedAngle) + torque );
+                this.attachedAngularVel += (- (g / L) * Math.sin(this.attachedAngle) + torque);
                 this.attachedAngularVel *= 0.995; // damping
                 this.attachedAngle += this.attachedAngularVel;
 
@@ -702,7 +706,7 @@ class Character {
                 if (keys[' ']) {
                     let boxBroken = false;
                     const remainingBoxes = [];
-                    
+
                     boxes.forEach(box => {
                         if (box.type === 'fragile') {
                             if (isNearRect(this, box, 20)) {
@@ -1065,17 +1069,57 @@ const tuiuiu = new Character(150, 600, '#ffffff', 'tuiuiu', 'Tuiuiú');
 
 // Sistema de Fases Estruturado
 const levels = [
+    // ─── FASE ZERO: A Fuga! ─────────────────────────────────────────────────────
+    {
+        name: "Fase 0: A Fuga!",
+        isPhaseZero: true,
+        platforms: [
+            // Piso principal (comprimento total)
+            { x: 0, y: 650, w: 1280, h: 70, type: 'ground' },
+            // Parede divisória superior (sólida — capivara abre quebrando a caixa-porta)
+            { x: 787, y: 0, w: 24, h: 510, type: 'ground' },
+            // GAIOLA: Teto sólido (tuiuiú não escapa voando)
+            { x: 948, y: 490, w: 252, h: 20, type: 'ground' },
+        ],
+        gates: [],
+        boxes: [
+            // Corredor: caixas que a capivara quebra com Espaço (imparável!)
+            { x: 248, y: 510, w: 52, h: 140, type: 'fragile' },
+            { x: 323, y: 510, w: 52, h: 140, type: 'fragile' },
+            { x: 398, y: 510, w: 52, h: 140, type: 'fragile' },
+            { x: 473, y: 510, w: 52, h: 140, type: 'fragile' },
+            { x: 548, y: 510, w: 52, h: 140, type: 'fragile' },
+            { x: 623, y: 510, w: 52, h: 140, type: 'fragile' },
+            { x: 698, y: 510, w: 52, h: 140, type: 'fragile' },
+            // Porta da parede divisória (frágil — capivara quebra ao chegar)
+            { x: 787, y: 510, w: 24, h: 140, type: 'fragile' },
+            // Parede esquerda e direita da gaiola (caixa frágil especial — quebrar liberta o tuiuiú e abre a porta)
+            { x: 948, y: 510, w: 46, h: 140, type: 'fragile', isTuiuiuCage: true },
+            { x: 1198, y: 510, w: 22, h: 140, type: 'fragile', isTuiuiuCage: true },
+        ],
+        fans: [],
+        spikes: [],
+        snakes: [],
+        waterArea: { x: 0, y: 0, w: 0, h: 0 },
+        door: { x: 1220, y: 555, w: 55, h: 95 },
+        highButton: { x: -600, y: -600, w: 1, h: 1 },
+        waterLever: { x: -600, y: -600, w: 1, h: 1 },
+        pressurePlate: null,
+        capyStart: { x: 60, y: 600 },
+        tuiStart: { x: 1080, y: 570 },
+    },
+    // ─── FASES NORMAIS ───────────────────────────────────────────────────────────
     {
         name: "Fase 1: O Começo",
         platforms: [
-            { x: 0, y: 650, w: 820, h: 70, type: 'ground' }, 
-            { x: 1100, y: 650, w: 180, h: 70, type: 'ground' }, 
-            { x: 820, y: 700, w: 280, h: 20, type: 'water-floor' }, 
-            { x: 800, y: 530, w: 20, h: 120, type: 'ground' }, 
-            { x: 1100, y: 530, w: 20, h: 120, type: 'ground' }, 
-            { x: 0, y: 250, w: 200, h: 20, type: 'platform' }, 
-            { x: 250, y: 0, w: 20, h: 450, type: 'ground' }, 
-            { x: 350, y: 350, w: 150, h: 20, type: 'platform' }, 
+            { x: 0, y: 650, w: 820, h: 70, type: 'ground' },
+            { x: 1100, y: 650, w: 180, h: 70, type: 'ground' },
+            { x: 820, y: 700, w: 280, h: 20, type: 'water-floor' },
+            { x: 800, y: 530, w: 20, h: 120, type: 'ground' },
+            { x: 1100, y: 530, w: 20, h: 120, type: 'ground' },
+            { x: 0, y: 250, w: 200, h: 20, type: 'platform' },
+            { x: 250, y: 0, w: 20, h: 450, type: 'ground' },
+            { x: 350, y: 350, w: 150, h: 20, type: 'platform' },
             { x: 650, y: 540, w: 150, h: 20, type: 'platform' }
         ],
         gates: [],
@@ -1094,12 +1138,12 @@ const levels = [
     {
         name: "Fase 2: O Peso da Cooperação",
         platforms: [
-            { x: 0, y: 650, w: 900, h: 70, type: 'ground' }, 
-            { x: 1120, y: 650, w: 160, h: 70, type: 'ground' }, 
-            { x: 0, y: 250, w: 180, h: 20, type: 'platform' }, 
-            { x: 700, y: 200, w: 150, h: 20, type: 'platform' }, 
-            { x: 900, y: 530, w: 20, h: 120, type: 'ground' }, 
-            { x: 1100, y: 530, w: 20, h: 120, type: 'ground' }, 
+            { x: 0, y: 650, w: 900, h: 70, type: 'ground' },
+            { x: 1120, y: 650, w: 160, h: 70, type: 'ground' },
+            { x: 0, y: 250, w: 180, h: 20, type: 'platform' },
+            { x: 700, y: 200, w: 150, h: 20, type: 'platform' },
+            { x: 900, y: 530, w: 20, h: 120, type: 'ground' },
+            { x: 1100, y: 530, w: 20, h: 120, type: 'ground' },
             { x: 920, y: 700, w: 180, h: 20, type: 'water-floor' },
             { x: 150, y: 430, w: 120, h: 20, type: 'platform' },
             { x: 800, y: 560, w: 100, h: 20, type: 'platform' }
@@ -1122,13 +1166,13 @@ const levels = [
     {
         name: "Fase 3: O Templo Submerso",
         platforms: [
-            { x: 0, y: 650, w: 430, h: 70, type: 'ground' }, 
-            { x: 870, y: 650, w: 410, h: 70, type: 'ground' }, 
-            { x: 430, y: 530, w: 20, h: 120, type: 'ground' }, 
-            { x: 850, y: 530, w: 20, h: 120, type: 'ground' }, 
-            { x: 450, y: 650, w: 400, h: 20, type: 'water-floor' }, 
-            { x: 1000, y: 250, w: 150, h: 20, type: 'platform' }, 
-            { x: 0, y: 170, w: 120, h: 20, type: 'platform' }, 
+            { x: 0, y: 650, w: 430, h: 70, type: 'ground' },
+            { x: 870, y: 650, w: 410, h: 70, type: 'ground' },
+            { x: 430, y: 530, w: 20, h: 120, type: 'ground' },
+            { x: 850, y: 530, w: 20, h: 120, type: 'ground' },
+            { x: 450, y: 650, w: 400, h: 20, type: 'water-floor' },
+            { x: 1000, y: 250, w: 150, h: 20, type: 'platform' },
+            { x: 0, y: 170, w: 120, h: 20, type: 'platform' },
             { x: 600, y: 250, w: 100, h: 20, type: 'platform' },
             { x: 330, y: 560, w: 100, h: 20, type: 'platform' }
         ],
@@ -1340,6 +1384,16 @@ function loadLevel(index) {
     doorOpened = false;
     isVictorious = false;
 
+    // Fase Zero: gaiola física — porta abre apenas quando a capivara quebrar a gaiola
+    isPhaseZero = lvl.isPhaseZero || false;
+    phase0TuiuiuCaged = false;
+    if (isPhaseZero) {
+        leverActivated = true;
+        buttonActivated = true;
+        doorOpened = false;          // porta fechada até a gaiola ser quebrada
+        door.color = '#ef4444';
+    }
+
     // Reposicionar personagens
     if (!lvl.capyStart) {
         console.warn('level', index, 'missing capyStart — using fallback');
@@ -1529,6 +1583,66 @@ function updateBoxes() {
     });
 }
 
+// ─── FASE ZERO: quebra automática de caixas ao colidir com a capivara ────────
+function checkPhase0BoxBreak() {
+    if (!isPhaseZero) return;
+    let anyBroken = false;
+    let tuiuiuFreed = false;
+    const remaining = [];
+
+    boxes.forEach(box => {
+        if (box.type === 'fragile' && isNearRect(capivara, box, 5)) {
+            if (box.isTuiuiuCage) tuiuiuFreed = true;
+            // Explosão épica de madeira
+            for (let i = 0; i < 24; i++) {
+                const px = box.x + box.w / 2 + (Math.random() - 0.5) * box.w;
+                const py = box.y + box.h / 3 + Math.random() * (box.h * 0.5);
+                const vx = (Math.random() - 0.5) * 14;
+                const vy = (Math.random() - 0.5) * 10 - 5;
+                particles.push(new Particle(px, py, vx, vy,
+                    Math.random() < 0.5 ? '#b45309' : '#78350f',
+                    Math.random() * 4 + 2, 1.0,
+                    0.014 + Math.random() * 0.02, 'wood'));
+            }
+            // Poeira no impacto
+            for (let i = 0; i < 10; i++) {
+                const px = box.x + box.w / 2 + (Math.random() - 0.5) * box.w;
+                const py = box.y + box.h - 4;
+                particles.push(new Particle(px, py,
+                    (Math.random() - 0.5) * 4, -Math.random() * 2 - 0.5,
+                    '#78716c', Math.random() * 3 + 1, 0.8, 0.04, 'dust'));
+            }
+            anyBroken = true;
+        } else {
+            remaining.push(box);
+        }
+    });
+
+    if (anyBroken) {
+        resetArray(boxes, remaining);
+        soundFX.playBreak();
+        screenShakeTime = 14;
+    }
+    if (tuiuiuFreed && !doorOpened) {
+        // Libertar o tuiuiú abre a porta de saída!
+        doorOpened = true;
+        door.color = '#22c55e';
+        updateUI();
+        soundFX.playTrigger();
+        // Explosão de plumas e celebração
+        for (let i = 0; i < 40; i++) {
+            const px = tuiuiu.x + tuiuiu.width / 2 + (Math.random() - 0.5) * 90;
+            const py = tuiuiu.y + tuiuiu.height / 2 + (Math.random() - 0.5) * 50;
+            const vx = (Math.random() - 0.5) * 10;
+            const vy = -Math.random() * 10 - 2;
+            const colors = ['#f59e0b', '#ffffff', '#fef08a', '#22c55e', '#86efac', '#bfdbfe'];
+            particles.push(new Particle(px, py, vx, vy,
+                colors[Math.floor(Math.random() * colors.length)],
+                Math.random() * 5 + 2, 1.0, 0.013, 'feather'));
+        }
+    }
+}
+
 function startGame() {
     const overlay = document.getElementById('tutorialOverlay');
     if (overlay && !overlay.classList.contains('hidden') && currentCutsceneIndex < cutsceneFrames.length - 1) {
@@ -1578,7 +1692,12 @@ function updateUI() {
     const hudLevel = document.getElementById('hud-level');
 
     if (hudLevel) {
-        hudLevel.textContent = `Fase: ${currentLevelIndex + 1}/${levels.length}`;
+        if (isPhaseZero) {
+            hudLevel.textContent = 'Fase 0: A Fuga!';
+        } else {
+            // levels[0] é a fase 0, então o índice exibido é currentLevelIndex (1-based a partir do 1)
+            hudLevel.textContent = `Fase: ${currentLevelIndex}/${levels.length - 1}`;
+        }
     }
 
     setIndicatorActive(indLever, leverActivated);
@@ -1595,6 +1714,9 @@ function updateUI() {
 
 // Colisões do puzzle e interações dinâmicas
 function checkCollisionsAndTriggers() {
+    // Fase Zero: a capivara quebra caixas automaticamente ao colidir
+    if (isPhaseZero) checkPhase0BoxBreak();
+
     const hazardEntities = [capivara, tuiuiu];
     if (spikes.some(spike => isSpikeActive(spike) && hazardEntities.some(entity => intersects(entity, spike)))) {
         restartLevelAfterHazard();
@@ -1653,8 +1775,8 @@ function checkCollisionsAndTriggers() {
         gate.y += (targetY - gate.y) * 0.1; // Deslizar portão suavemente
     });
 
-    // 4. Checar se ambos ativaram para abrir portal de saída
-    if (leverActivated && buttonActivated && !doorOpened) {
+    // 4. Checar se ambos ativaram para abrir portal de saída (não na fase 0, que usa lógica própria)
+    if (!isPhaseZero && leverActivated && buttonActivated && !doorOpened) {
         doorOpened = true;
         door.color = '#22c55e';
         updateUI();
@@ -1669,6 +1791,163 @@ function checkCollisionsAndTriggers() {
             triggerVictory();
         }
     }
+}
+
+// ─── FASE ZERO: Fundo do Corredor e Sala do Tuiuiú ─────────────────────────
+function drawPhase0Background() {
+    const ceilY = 438;
+
+    // Teto do corredor (lado esquerdo — corredor escuro)
+    ctx.fillStyle = '#161210';
+    ctx.fillRect(0, 0, 811, ceilY);
+    ctx.strokeStyle = '#2a2320';
+    ctx.lineWidth = 1.5;
+    for (let x = 0; x < 811; x += 66) {
+        for (let y = 0; y < ceilY; y += 33) {
+            const off = (Math.floor(y / 33) % 2) * 33;
+            ctx.strokeRect(x - off, y, 66, 33);
+        }
+    }
+    // Borda inferior do teto com musgo
+    ctx.fillStyle = '#14532d';
+    ctx.fillRect(0, ceilY - 3, 811, 7);
+    for (let x = 14; x < 811; x += 34) {
+        const dl = 5 + Math.sin(x * 0.19) * 4;
+        ctx.fillStyle = '#166534';
+        ctx.beginPath();
+        ctx.ellipse(x, ceilY + 5, 7, dl, 0, 0, Math.PI);
+        ctx.fill();
+    }
+
+    // Fundo da sala do tuiuiú (lado direito — levemente mais quente)
+    ctx.fillStyle = '#1c1410';
+    ctx.fillRect(811, 0, 469, 400);
+    ctx.strokeStyle = '#2d2420';
+    ctx.lineWidth = 1.5;
+    for (let x = 811; x < 1280; x += 80) {
+        for (let y = 0; y < 400; y += 40) {
+            const off = (Math.floor(y / 40) % 2) * 40;
+            ctx.strokeRect(x - off + (811 % 80), y, 80, 40);
+        }
+    }
+
+    // Tochas animadas no corredor
+    const drawTorch = (tx, ty) => {
+        const flicker = Math.abs(Math.sin(Date.now() * 0.009 + tx * 0.01));
+        const fy = ty - 12 - flicker * 8;
+        // Brilho ambiente
+        const grd = ctx.createRadialGradient(tx, fy, 1, tx, fy, 58);
+        grd.addColorStop(0, 'rgba(251, 146, 60, 0.32)');
+        grd.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(tx - 58, fy - 58, 116, 116);
+        // Suporte da tocha
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(tx - 3, ty - 5, 6, 22);
+        // Chama externa
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath();
+        ctx.ellipse(tx, fy + 5, 7 + flicker * 2, 12 + flicker * 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Chama interna
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.ellipse(tx, fy + 7, 3 + flicker, 6 + flicker * 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+    };
+    drawTorch(130, ceilY + 5);
+    drawTorch(420, ceilY + 5);
+    drawTorch(680, ceilY + 5);
+    drawTorch(1125, 395);
+
+    // ── Mural na parede da sala do tuiuiú (acima da gaiola) ──────────────────────
+    const mx = 832, my = 240, mw = 330, mh = 130;
+    // Placa de pedra atrás
+    ctx.fillStyle = '#0e0608';
+    ctx.fillRect(mx - 6, my - 6, mw + 12, mh + 12);
+    // Fundo do mural
+    ctx.fillStyle = '#12060a';
+    ctx.fillRect(mx, my, mw, mh);
+    // Borda dourada externa
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(mx, my, mw, mh);
+    // Borda interna decorativa
+    ctx.strokeStyle = '#92400e';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(mx + 9, my + 9, mw - 18, mh - 18);
+    // Estrelinhas decorativas no topo
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = "11px Arial";
+    ctx.textAlign = 'center';
+    ctx.fillText('✦  ✦  ✦', mx + mw / 2, my + 26);
+    // Linha 1
+    ctx.font = "bold 14px 'Fredoka', Arial, sans-serif";
+    ctx.fillStyle = '#fef08a';
+    ctx.fillText('🏆  Jogo Ganhador da', mx + mw / 2, my + 50);
+    // Linha 2
+    ctx.font = "bold 17px 'Fredoka', Arial, sans-serif";
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText('1° GameJam ExpoGeek 2026', mx + mw / 2, my + 78);
+    // Linha 3
+    ctx.font = "bold 14px 'Fredoka', Arial, sans-serif";
+    ctx.fillStyle = '#fde68a';
+    ctx.fillText('Campo Grande  🌿', mx + mw / 2, my + 106);
+    // Estrelinhas no rodapé
+    ctx.fillStyle = '#92400e';
+    ctx.font = "11px Arial";
+    ctx.fillText('✦  ✦  ✦', mx + mw / 2, my + 124);
+}
+
+// ─── FASE ZERO: Grade sobre o tuiuiú (desaparece quando liberado) ────────────
+function drawPhase0Foreground() {
+    if (!phase0TuiuiuCaged) return;
+
+    const cx = tuiuiu.x - 26;
+    const cy = tuiuiu.y - 30;
+    const cw = tuiuiu.width + 60;
+    const ch = tuiuiu.height + 58;
+
+    // Sombra da gaiola
+    ctx.fillStyle = 'rgba(0,0,0,0.50)';
+    ctx.fillRect(cx + 5, cy + 5, cw, ch);
+    // Fundo escuro da gaiola
+    ctx.fillStyle = 'rgba(8,3,0,0.52)';
+    ctx.fillRect(cx, cy, cw, ch);
+
+    // Barras verticais com gradiente metálico
+    const barCount = 5;
+    ctx.lineWidth = 5.5;
+    ctx.lineCap = 'square';
+    for (let i = 0; i <= barCount; i++) {
+        const bx = cx + (cw / barCount) * i;
+        const g = ctx.createLinearGradient(bx - 2, 0, bx + 4, 0);
+        g.addColorStop(0, '#3d3835');
+        g.addColorStop(0.45, '#a8a29e');
+        g.addColorStop(1, '#3d3835');
+        ctx.strokeStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(bx, cy);
+        ctx.lineTo(bx, cy + ch);
+        ctx.stroke();
+    }
+    // Barras horizontais
+    ctx.lineWidth = 4.5;
+    [cy, cy + Math.round(ch / 2), cy + ch].forEach(by => {
+        const g = ctx.createLinearGradient(0, by - 2, 0, by + 4);
+        g.addColorStop(0, '#3d3835');
+        g.addColorStop(0.45, '#a8a29e');
+        g.addColorStop(1, '#3d3835');
+        ctx.strokeStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(cx, by);
+        ctx.lineTo(cx + cw, by);
+        ctx.stroke();
+    });
+    // Ícone de cadeado acima
+    ctx.textAlign = 'center';
+    ctx.font = '20px Arial';
+    ctx.fillText('🔒', cx + cw / 2, cy - 5);
 }
 
 // Loop Principal de Renderização e Física
@@ -1688,12 +1967,16 @@ function gameLoop() {
     ctx.fillStyle = '#1c1917';
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // Tijolos do fundo decorativos
-    ctx.fillStyle = '#141210';
-    ctx.fillRect(80, 100, 140, 45);
-    ctx.fillRect(380, 160, 100, 50);
-    ctx.fillRect(720, 120, 120, 40);
-    ctx.fillRect(1000, 200, 80, 40);
+    if (isPhaseZero) {
+        drawPhase0Background();
+    } else {
+        // Tijolos do fundo decorativos
+        ctx.fillStyle = '#141210';
+        ctx.fillRect(80, 100, 140, 45);
+        ctx.fillRect(380, 160, 100, 50);
+        ctx.fillRect(720, 120, 120, 40);
+        ctx.fillRect(1000, 200, 80, 40);
+    }
 
     // 2. Desenhar Plataformas Físicas (Estilo Tijolos e Musgo)
     platforms.forEach(plat => {
@@ -1796,7 +2079,7 @@ function gameLoop() {
     gates.forEach(gate => {
         ctx.fillStyle = '#78716c';
         ctx.fillRect(gate.x, gate.y, gate.w, gate.h);
-        
+
         ctx.strokeStyle = '#44403c';
         ctx.lineWidth = 3;
         ctx.strokeRect(gate.x, gate.y, gate.w, gate.h);
@@ -1816,18 +2099,46 @@ function gameLoop() {
     if (pressurePlate) {
         ctx.fillStyle = '#44403c';
         ctx.fillRect(pressurePlate.x - 4, pressurePlate.y + 2, pressurePlate.w + 8, 8);
-        
+
         ctx.fillStyle = pressurePlate.activated ? '#22c55e' : '#ef4444';
         const hBtn = pressurePlate.activated ? 3 : 7;
         ctx.fillRect(pressurePlate.x, pressurePlate.y + (10 - hBtn), pressurePlate.w, hBtn);
     }
 
-    // 2.7 Desenhar Caixas (Frágeis e Móveis)
+    // 2.7 Desenhar Caixas (Frágeis, Gaiola e Móveis)
     boxes.forEach(box => {
-        if (box.type === 'fragile') {
+        if (box.isTuiuiuCage) {
+            // Caixa-gaiola especial: cadeado que prende o tuiuiú
+            ctx.fillStyle = '#2c0f05';
+            ctx.fillRect(box.x, box.y, box.w, box.h);
+            // Barras verticais
+            ctx.strokeStyle = '#78350f';
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            for (let i = 0; i <= 3; i++) {
+                const bx = box.x + (box.w / 3) * i;
+                ctx.beginPath();
+                ctx.moveTo(bx, box.y + 4);
+                ctx.lineTo(bx, box.y + box.h - 4);
+                ctx.stroke();
+            }
+            // Borda
+            ctx.strokeStyle = '#92400e';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(box.x, box.y, box.w, box.h);
+            // Barra horizontal central
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + box.h / 2);
+            ctx.lineTo(box.x + box.w, box.y + box.h / 2);
+            ctx.stroke();
+            // Cadeado
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 24px Arial';
+            ctx.fillText('🔒', box.x + box.w / 2, box.y + box.h / 2 + 10);
+        } else if (box.type === 'fragile') {
             ctx.fillStyle = '#92400e'; // Madeira
             ctx.fillRect(box.x, box.y, box.w, box.h);
-            
+
             // X da caixa frágil
             ctx.strokeStyle = '#f97316';
             ctx.lineWidth = 4;
@@ -1842,11 +2153,11 @@ function gameLoop() {
             ctx.strokeStyle = '#78350f';
             ctx.lineWidth = 2;
             ctx.strokeRect(box.x, box.y, box.w, box.h);
-        } else {
+        } else if (box.type === 'movable') {
             // Caixa Móvel
             ctx.fillStyle = '#57534e';
             ctx.fillRect(box.x, box.y, box.w, box.h);
-            
+
             ctx.strokeStyle = '#a8a29e';
             ctx.lineWidth = 2.5;
             ctx.strokeRect(box.x + 5, box.y + 5, box.w - 10, box.h - 10);
@@ -1895,7 +2206,7 @@ function gameLoop() {
     });
 
     // 3. Desenhar Elementos Interativos do Puzzle
-    
+
     // A) Botão no teto/alto
     ctx.fillStyle = buttonActivated ? '#22c55e' : '#ef4444';
     ctx.fillRect(highButton.x, highButton.y, highButton.w, highButton.h);
@@ -1956,6 +2267,7 @@ function gameLoop() {
     capivara.draw();
     tuiuiu.draw();
 
+
     // 6. Desenhar a ÁGUA com Bolhas e Ondulação
     // Gerar bolhas aleatórias flutuando do fundo da água
     if (waterArea.w > 0 && Math.random() < 0.08) {
@@ -2008,7 +2320,7 @@ function gameLoop() {
     // Efeitos de brilho das luzes ativadas (Composite Mode)
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
-    
+
     if (doorOpened) {
         const dGlow = ctx.createRadialGradient(
             door.x + door.w / 2, door.y + door.h / 2, 5,
