@@ -49,7 +49,7 @@ A capivara é especializada em interações terrestres e aquáticas.
 
 ### Habilidades
 
-- Quebrar caixas que bloqueiam o caminho.
+- Quebrar paredes de madeira que bloqueiam o caminho.
 - Nadar.
 - Boiar na superfície da água.
 - Mergulhar.
